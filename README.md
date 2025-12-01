@@ -2,9 +2,9 @@
 
 Simple display of GNSS + NTN usecase:
 
-    b. Provision ATT with time of pass via shell 'att_ntn_set_time "2025-10-07-14:30:00"'.
-
     a. Upon boot, GNSS cold start to get UTC time.
+
+    b. Provision ATT with time of pass via shell 'att_ntn_set_time "2025-10-07-14:30:00"'.
 
     c. Go sleep.
 

@@ -882,8 +882,11 @@ static int sock_open_and_connect(struct ntn_state_object *state)
 static int sock_send_gnss_data(struct ntn_state_object *state)
 {
 	int err;
-	char message[CONFIG_APP_NTN_SEND_1200_BYTES ? 1200 : 256];
-
+#if defined(CONFIG_APP_NTN_SEND_1200_BYTES)
+	char message[1200];
+#else
+	char message[256];
+#endif
 	const struct nrf_modem_gnss_pvt_data_frame *gnss_data = &state->last_pvt;
 
 
@@ -966,7 +969,7 @@ static int sock_send_gnss_data(struct ntn_state_object *state)
 				"99.99",temp,"999.99","99.99");
 #else
 	// /* Custom UDP endpoint */
-#if CONFIG_APP_NTN_SEND_1200_BYTES
+#if defined(CONFIG_APP_NTN_SEND_1200_BYTES)
 	// Fill the message with repeating pattern to create 1200 bytes
 	char base_msg[100];
 	err = snprintk(base_msg, sizeof(base_msg),

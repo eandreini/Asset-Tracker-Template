@@ -2,9 +2,9 @@
 
 Simple display of GNSS + NTN usecase:
 
-    a. Provision ATT with time of pass(es) via CONFIG_APP_NTN_LEO_TIME_OF_PASS.
+    b. Provision ATT with time of pass via shell 'att_ntn_set_time "2025-10-07-14:30:00"'.
 
-    b. Upon boot, GNSS cold start to get UTC time.
+    a. Upon boot, GNSS cold start to get UTC time.
 
     c. Go sleep.
 
@@ -22,18 +22,25 @@ CONFIG_APP_NTN_SERVER_ADDR=""
 CONFIG_APP_NTN_SERVER_PORT=
 ```
 
+Select following Kconfig to use world.thingy.rocks data format:
+```shell
+CONFIG_APP_NTN_THINGY_ROCKS_ENDPOINT=y
+```
+
 ## NTN Sateliot - nRF9151 DK
 
 ```shell
 west build -b nrf9151dk/nrf9151/ns app -- -DEXTRA_CONF_FILE=overlay-ntn-sateliot.conf
 ```
 
-## NTN Amarisoft Callbox - nrf9151dk
+
+## NTN OQtech - nRF9151 DK
 
 ```shell
-west build -b nrf9151dk/nrf9151/ns app -- -DEXTRA_CONF_FILE=overlay-ntn-amari.conf
+west build -b nrf9151dk/nrf9151/ns app -- -DEXTRA_CONF_FILE=overlay-ntn-oqtech.conf
 ```
+
 
 ## Flash and run
 
-App should report GNSS data to Thingy World endpoint
+App should report GNSS data to UDP endpoint, upon successfull connection.

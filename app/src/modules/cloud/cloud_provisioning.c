@@ -49,7 +49,7 @@ static void nrf_provisioning_callback(const struct nrf_provisioning_callback_dat
 		return;
 	case NRF_PROVISIONING_EVENT_DONE:
 		LOG_DBG("Provisioning finished");
-
+	    printf ("$NRFRESP$: PROVISIONED\r\n");
 		msg = CLOUD_PROVISIONING_FINISHED;
 
 		k_sleep(K_SECONDS(10));

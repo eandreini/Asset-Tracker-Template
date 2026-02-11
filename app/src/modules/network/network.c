@@ -220,8 +220,26 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		} else if (evt->modem_evt.type == LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE) {
 			LOG_DBG("LTE_LC_MODEM_EVT_LIGHT_SEARCH_DONE");
 			network_status_notify(NETWORK_LIGHT_SEARCH_DONE);
+		} else {
+			LOG_DBG("***LTE MODEM EVENT: %d", evt->modem_evt.type);
 		}
 		break;
+	case LTE_LC_EVT_MODEM_SLEEP_ENTER:
+		LOG_DBG("***LTE MODEM SLEEP ENTER");
+		break;
+	case LTE_LC_EVT_MODEM_SLEEP_EXIT:
+		LOG_DBG("***LTE MODEM SLEEP EXIT");
+		break;
+	case LTE_LC_EVT_MODEM_SLEEP_EXIT_PRE_WARNING:
+		LOG_DBG("***LTE MODEM SLEEP EXIT PRE WARNING");
+		break;
+	case LTE_LC_EVT_RRC_UPDATE:
+		if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE)
+			LOG_DBG("***LTE MODE IDLE");
+		else if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED)	
+			LOG_DBG("***LTE MODE CONNECTED");
+		break;
+	
 	case LTE_LC_EVT_PSM_UPDATE: {
 		struct network_msg msg = {
 			.type = NETWORK_PSM_PARAMS,

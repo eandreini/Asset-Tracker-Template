@@ -57,6 +57,13 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 			LOG_DBG("Configuration: Decoded buffer_mode = %s",
 				config->buffer_mode ? "enabled" : "disabled");
 		}
+
+		if (shadow.config.PTIS_present) {
+			config->PTIS = shadow.config.PTIS.PTIS;
+			LOG_DBG("Configuration: Decoded PTIS = %d",
+				config->PTIS);
+
+		}
 	}
 
 	if (shadow.command_present) {
@@ -103,6 +110,11 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config,
 		shadow.config_present = true;
 		shadow.config.buffer_mode_present = true;
 		shadow.config.buffer_mode.buffer_mode = config->buffer_mode;
+	}
+	if (config->PTIS > 0) {
+		shadow.config_present = true;
+		shadow.config.PTIS_present = true;
+		shadow.config.PTIS.PTIS = config->PTIS;
 	}
 
 	/* Build shadow object with command section */

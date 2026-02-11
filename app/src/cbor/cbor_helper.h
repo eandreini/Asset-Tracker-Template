@@ -21,6 +21,8 @@ struct config_params {
 
 	/** Buffer mode validity flag */
 	bool buffer_mode_valid;
+
+	uint16_t PTIS;
 };
 
 /**

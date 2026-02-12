@@ -534,7 +534,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 	case LOCATION_EVT_GNSS_ASSISTANCE_REQUEST:
 		LOG_DBG("A-GNSS assistance request received from location library");
-		agnss_request_send(&event_data->agnss_request);
+		//agnss_request_send(&event_data->agnss_request);
 		break;
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 	case LOCATION_EVT_RESULT_UNKNOWN:

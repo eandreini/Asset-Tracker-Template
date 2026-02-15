@@ -47,6 +47,8 @@ LOG_MODULE_REGISTER(main, 4);
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
+gpsparams_t g_gpsparams;
+gpsparams_chgd_t g_gpsparams_chgd;
 
 
 enum timer_msg_type {
@@ -737,7 +739,7 @@ static void timer_send_data_stop(void)
 	}
 }
 
-static void update_shadow_reported_section(const struct config_params *config,
+static void update_shadow_reported_section(const struct gps_config_params *config,
 					   uint32_t command_type,
 					   uint32_t command_id)
 {
@@ -773,7 +775,7 @@ static void update_shadow_reported_section(const struct config_params *config,
 		config->buffer_mode ? "buffer" : "passthrough");
 }
 
-static void config_apply(struct main_state *state_object, const struct config_params *config)
+static void config_apply(struct main_state *state_object, const struct gps_config_params *config)
 {
 	int err;
 	struct storage_msg storage_msg = {
@@ -856,9 +858,11 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 					 const struct cloud_msg *msg)
 {
 	int err;
-	struct config_params config = { 0 };
+	struct gps_config_params config = { 0 };
 	uint32_t command_type = 0;
 	uint32_t command_id = 0;
+	config.gpsparams = &g_gpsparams;
+	config.gpschgd = &g_gpsparams_chgd;
 
 	err = decode_shadow_parameters_from_cbor(msg->response.buffer,
 						 msg->response.buffer_data_len,
@@ -1077,11 +1081,13 @@ static enum smf_state_result buffer_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
 			LOG_DBG("Received empty shadow response from cloud");
 
-			struct config_params config = {
+			struct gps_config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
 				.buffer_mode = true,
 				.buffer_mode_valid = true,
+				.gpsparams = &g_gpsparams,
+				.gpschgd = &g_gpsparams_chgd
 			};
 
 			update_shadow_reported_section(&config, 0, 0);
@@ -1484,11 +1490,14 @@ static enum smf_state_result passthrough_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
 			LOG_DBG("Received empty shadow response from cloud");
 
-			struct config_params config = {
+			struct gps_config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
 				.buffer_mode = false,
 				.buffer_mode_valid = true,
+				.gpsparams = &g_gpsparams,
+				.gpschgd = &g_gpsparams_chgd
+
 			};
 
 			update_shadow_reported_section(&config, 0, 0);

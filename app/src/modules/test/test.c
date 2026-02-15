@@ -20,6 +20,7 @@ ZBUS_CHAN_DEFINE(TEST_CHAN,
                  ZBUS_MSG_INIT(0)
 );
 
+
 /* Register zbus subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(test);
 
@@ -169,6 +170,7 @@ static void test_task(void)
     task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 
     smf_set_initial(SMF_CTX(&test_state), &states[STATE_RUNNING]);
+
 
     while (true) {
         err = task_wdt_feed(task_wdt_id);

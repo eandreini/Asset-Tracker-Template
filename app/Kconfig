@@ -17,6 +17,7 @@ rsource "src/modules/environmental/Kconfig.environmental"
 rsource "src/modules/button/Kconfig.button"
 rsource "src/modules/storage/Kconfig.storage"
 rsource "src/modules/test/Kconfig.test"
+rsource "src/modules/gmtrack/Kconfig.gmtrack"
 
 endmenu
 

@@ -47,7 +47,6 @@ LOG_MODULE_REGISTER(main, 4);
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
-const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 
 
 enum timer_msg_type {
@@ -1971,7 +1970,6 @@ int main(void)
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
 
 	LOG_DBG("Main has started - pre mcu update via ble !!!");
-	gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
@@ -2067,36 +2065,6 @@ int g_bt_batt;
 #include <string.h>
 #include <stdlib.h>
 
-
-static int cmd_led(const struct shell *sh, size_t argc, char **argv)
-{
-	if (argc == 2) {
-		if (strcmp(argv[1],"on") == 0)
-			gpio_pin_set_dt(&led, 1); 
-		else if (strcmp(argv[1],"off") == 0)
-			gpio_pin_set_dt(&led, 0); 
-
-		return 0;
-	}
-	return 1;
-}
-static int cmd_serialtest(const struct shell *sh, size_t argc, char **argv)
-{
-	int num = -1;
-	if (argc == 2) {
-		if (sscanf (argv[1], "%d", &num) != 1) {
-			return 1;
-		}
-	}
-	do {
-		gpio_pin_set_dt(&led, 1); 
-		printf ("The quick brown fox jumps over the lazy dog\r\n");
-		gpio_pin_set_dt(&led, 0); 
-		if (num > 0)
-			num--;
-	} while (num);
-	return 0;
-}
 
 
 static int cmd_set_mac(const struct shell *sh, size_t argc, char **argv)
@@ -2196,5 +2164,3 @@ SHELL_CMD_REGISTER(set_sled, NULL, "Set SLED Mac address", cmd_set_sled);
 SHELL_CMD_REGISTER(set_batt, NULL, "Set BT BATT address", cmd_set_batt);
 SHELL_CMD_REGISTER(show_bt_info, NULL, "Show BT info", cmd_show_btinfo);
 SHELL_CMD_REGISTER(send_bt_info, NULL, "Send BT info", cmd_send_btinfo);
-SHELL_CMD_REGISTER(led, NULL, "Turn led on and off", cmd_led);
-SHELL_CMD_REGISTER(serialtest, NULL, "Dump on serial <arg> sentences, infinite if 0 or missing param", cmd_serialtest);

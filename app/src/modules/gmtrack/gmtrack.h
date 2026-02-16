@@ -1,5 +1,5 @@
-#ifndef _TEST_H_
-#define _TEST_H_
+#ifndef _GMTRACK_H_
+#define _GMTRACKH_
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
@@ -18,6 +18,7 @@ enum gmtrack_msg_type {
 
     /* Input message types */
     GMTRACK_REQUEST,
+    GMTRACK_CONFIG_CHG,
 
 };
 
@@ -29,7 +30,8 @@ struct gmtrack_msg {
 
 enum gmtrack_poll_type {
     gmpoll_empty = 0,
-    gmpoll_text
+    gmpoll_text = 1,
+    gmpoll_config = 2,
 };
 
 struct gmtrack_poll_msg {

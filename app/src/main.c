@@ -25,6 +25,7 @@
 #include "test.h"
 #include <date_time.h>
 #include <zephyr/drivers/gpio.h>
+#include "modules/gmtrack/gmtrack.h"
 
 #if defined(CONFIG_APP_LED)
 #include "led.h"
@@ -784,6 +785,21 @@ static void config_apply(struct main_state *state_object, const struct gps_confi
 	};
 	bool interval_changed = false;
 
+
+	if (GpsParamsIsChanged()) {
+		// publish change to gmtrack
+		struct gmtrack_msg gmtrack_msg = {
+			.type = GMTRACK_CONFIG_CHG,
+		};
+		err = zbus_chan_pub(&GMTRACK_CHAN, &gmtrack_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish gmtrack cfg change, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
+	}
+
 	if (!config->sample_interval &&
 	    !config->update_interval &&
 	    !config->buffer_mode_valid) {
@@ -817,6 +833,8 @@ static void config_apply(struct main_state *state_object, const struct gps_confi
 
 		return;
 	}
+
+
 
 	/* Notify waiting states that configuration has changed and timers need restart */
 	if (interval_changed) {

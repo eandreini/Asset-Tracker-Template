@@ -1,5 +1,6 @@
 #include "gpsparams.h"
 #include <stdio.h>
+#include <string.h>
 
 
 #define DUMP(param,spcs)\
@@ -127,4 +128,220 @@ void GpsParamsTestFill()
     SET(Ts8Dow, 0);     
     SET(Ts8IntervalM, 0);
 
+}
+
+
+#define CHECK_PAR(name,field,value)\
+    if (strcmp(name, #field) == 0) {\
+        g_gpsparams.field = value;\
+        g_gpsparams_chgd.chgd##field = 1;\
+        return 0;\
+    }
+
+
+int GpsParamsSetValue(const char * name, int value)
+{
+    CHECK_PAR(name, PresenceTimeoutIdleSec, value)
+    CHECK_PAR(name, PresenceTimeoutActSec, value)
+    CHECK_PAR(name, PresenceHysteresisSec, value)
+
+    CHECK_PAR(name, NotifyPresenceLost, value)
+    CHECK_PAR(name, NotifyAccMove, value)
+    CHECK_PAR(name, NotifySledEvents, value)
+    CHECK_PAR(name, CoaleshTimeMin, value)
+
+    CHECK_PAR(name, MinGpsStrength, value)
+    CHECK_PAR(name, GpsFixTimeoutSec, value)
+    CHECK_PAR(name, GpsFixDelaySec, value)
+
+    CHECK_PAR(name, LteMinStrenght, value)
+    CHECK_PAR(name, LteTimeoutSec, value)
+    CHECK_PAR(name, LteOnDemandFreqMin, value)
+    CHECK_PAR(name, LteOnDemandOffsetMin, value)
+    CHECK_PAR(name, LteConnOnNoFix, value)
+    CHECK_PAR(name, GpsAidIntervalH, value)
+    CHECK_PAR(name, GpsAidNumDays, value)
+    CHECK_PAR(name, GpsAidOnlyM1, value)
+
+    CHECK_PAR(name, Ts1Range, value)
+    CHECK_PAR(name, Ts1Dow, value)
+    CHECK_PAR(name, Ts1IntervalM, value)
+
+    CHECK_PAR(name, Ts2Range, value)
+    CHECK_PAR(name, Ts2Dow, value)
+    CHECK_PAR(name, Ts2IntervalM, value)
+
+    CHECK_PAR(name, Ts3Range, value)
+    CHECK_PAR(name, Ts3Dow, value)
+    CHECK_PAR(name, Ts3IntervalM, value)
+
+    CHECK_PAR(name, Ts4Range, value)
+    CHECK_PAR(name, Ts4Dow, value)
+    CHECK_PAR(name, Ts4IntervalM, value)
+
+    CHECK_PAR(name, Ts5Range, value)
+    CHECK_PAR(name, Ts5Dow, value)
+    CHECK_PAR(name, Ts5IntervalM, value)
+
+    CHECK_PAR(name, Ts6Range, value)
+    CHECK_PAR(name, Ts6Dow, value)
+    CHECK_PAR(name, Ts6IntervalM, value)
+
+    CHECK_PAR(name, Ts7Range, value)
+    CHECK_PAR(name, Ts7Dow, value)
+    CHECK_PAR(name, Ts7IntervalM, value)
+
+    CHECK_PAR(name, Ts8Range, value)
+    CHECK_PAR(name, Ts8Dow, value)
+    CHECK_PAR(name, Ts8IntervalM, value)
+
+    return -1;
+
+}
+
+#define GET_CHANGED(param)\
+    if (g_gpsparams_chgd.chgd##param) {\
+        changed++;\
+        sprintf(tmp,#param"=%d,", g_gpsparams.param);\
+        int ln = strlen(tmp);\
+        if (ln >= space) {\
+            *ptr = 0;\
+            cb(buffer);\
+            ptr = buffer;\
+            space = maxlen;\
+        }\
+        memcpy(ptr, tmp, ln);\
+        ptr += ln;\
+        space -= ln;\
+    }
+
+#define IS_CHANGED(param)\
+    if (g_gpsparams_chgd.chgd##param)\
+        return 1;\
+
+int GpsParamsFlushChanged(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
+{
+    char tmp[32];
+    char * ptr = buffer;
+    int space = maxlen;
+    int changed = 0;
+
+    GET_CHANGED(PresenceTimeoutIdleSec)
+    GET_CHANGED(PresenceTimeoutActSec)
+    GET_CHANGED(PresenceHysteresisSec)
+
+    GET_CHANGED(NotifyPresenceLost)
+    GET_CHANGED(NotifyAccMove)
+    GET_CHANGED(NotifySledEvents)
+    GET_CHANGED(CoaleshTimeMin)
+
+    GET_CHANGED(MinGpsStrength)
+    GET_CHANGED(GpsFixTimeoutSec)
+    GET_CHANGED(GpsFixDelaySec)
+
+    GET_CHANGED(LteMinStrenght)
+    GET_CHANGED(LteTimeoutSec)
+    GET_CHANGED(LteOnDemandFreqMin)
+    GET_CHANGED(LteOnDemandOffsetMin)
+    GET_CHANGED(LteConnOnNoFix)
+    GET_CHANGED(GpsAidIntervalH)
+    GET_CHANGED(GpsAidNumDays)
+    GET_CHANGED(GpsAidOnlyM1)
+
+    GET_CHANGED(Ts1Range)
+    GET_CHANGED(Ts1Dow)
+    GET_CHANGED(Ts1IntervalM)
+    
+    GET_CHANGED(Ts2Range)
+    GET_CHANGED(Ts2Dow)
+    GET_CHANGED(Ts2IntervalM)
+
+    GET_CHANGED(Ts3Range)
+    GET_CHANGED(Ts3Dow)
+    GET_CHANGED(Ts3IntervalM)
+
+    GET_CHANGED(Ts4Range)
+    GET_CHANGED(Ts4Dow)
+    GET_CHANGED(Ts4IntervalM)
+
+    GET_CHANGED(Ts5Range)
+    GET_CHANGED(Ts5Dow)
+    GET_CHANGED(Ts5IntervalM)
+
+    GET_CHANGED(Ts6Range)
+    GET_CHANGED(Ts6Dow)
+    GET_CHANGED(Ts6IntervalM)
+
+    GET_CHANGED(Ts7Range)
+    GET_CHANGED(Ts7Dow)
+    GET_CHANGED(Ts7IntervalM)
+
+    GET_CHANGED(Ts8Range)
+    GET_CHANGED(Ts8Dow)
+    GET_CHANGED(Ts8IntervalM)
+
+    if (ptr != buffer) {
+        *ptr = 0;\
+        cb(buffer);\
+    }
+
+    return changed;
+}
+int GpsParamsIsChanged()
+{
+    IS_CHANGED(PresenceTimeoutIdleSec)
+    IS_CHANGED(PresenceTimeoutActSec)
+    IS_CHANGED(PresenceHysteresisSec)
+
+    IS_CHANGED(NotifyPresenceLost)
+    IS_CHANGED(NotifyAccMove)
+    IS_CHANGED(NotifySledEvents)
+    IS_CHANGED(CoaleshTimeMin)
+
+    IS_CHANGED(MinGpsStrength)
+    IS_CHANGED(GpsFixTimeoutSec)
+    IS_CHANGED(GpsFixDelaySec)
+
+    IS_CHANGED(LteMinStrenght)
+    IS_CHANGED(LteTimeoutSec)
+    IS_CHANGED(LteOnDemandFreqMin)
+    IS_CHANGED(LteOnDemandOffsetMin)
+    IS_CHANGED(LteConnOnNoFix)
+    IS_CHANGED(GpsAidIntervalH)
+    IS_CHANGED(GpsAidNumDays)
+    IS_CHANGED(GpsAidOnlyM1)
+
+    IS_CHANGED(Ts1Range)
+    IS_CHANGED(Ts1Dow)
+    IS_CHANGED(Ts1IntervalM)
+    
+    IS_CHANGED(Ts2Range)
+    IS_CHANGED(Ts2Dow)
+    IS_CHANGED(Ts2IntervalM)
+
+    IS_CHANGED(Ts3Range)
+    IS_CHANGED(Ts3Dow)
+    IS_CHANGED(Ts3IntervalM)
+
+    IS_CHANGED(Ts4Range)
+    IS_CHANGED(Ts4Dow)
+    IS_CHANGED(Ts4IntervalM)
+
+    IS_CHANGED(Ts5Range)
+    IS_CHANGED(Ts5Dow)
+    IS_CHANGED(Ts5IntervalM)
+
+    IS_CHANGED(Ts6Range)
+    IS_CHANGED(Ts6Dow)
+    IS_CHANGED(Ts6IntervalM)
+
+    IS_CHANGED(Ts7Range)
+    IS_CHANGED(Ts7Dow)
+    IS_CHANGED(Ts7IntervalM)
+
+    IS_CHANGED(Ts8Range)
+    IS_CHANGED(Ts8Dow)
+    IS_CHANGED(Ts8IntervalM)
+
+    return 0;
 }

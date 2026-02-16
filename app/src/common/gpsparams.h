@@ -121,6 +121,11 @@ typedef struct {
 
 void GpsParamsDump();
 void GpsParamsTestFill();
+int GpsParamsSetValue(const char * name, int value);
+
+typedef void gpsparams_flush_cb_t(const char * str);
+int GpsParamsFlushChanged(char * buffer, int maxlen, gpsparams_flush_cb_t cb);
+int GpsParamsIsChanged();
 
 extern gpsparams_t g_gpsparams;
 extern gpsparams_chgd_t g_gpsparams_chgd;

@@ -31,6 +31,8 @@ static struct gpio_callback gp14_event_cb;
 static const struct device *const uart0_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1));
 
+static void flush_cfgchg();
+
 /* Register log module */
 LOG_MODULE_REGISTER(gmtrack_module, CONFIG_APP_GMTRACK_LOG_LEVEL);
 
@@ -95,8 +97,7 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
 
 /* State machine handlers */
-static enum smf_state_result 
-state_running_run(void *o)
+static enum smf_state_result state_running_run(void *o)
 {
     struct gmtrack_state *state_object = (struct gmtrack_state *)o;
 
@@ -119,6 +120,10 @@ state_running_run(void *o)
                 SEND_FATAL_ERROR();
                 return SMF_EVENT_PROPAGATE;
             }
+        }
+        else if (msg.type == GMTRACK_CONFIG_CHG) {
+            LOG_DBG("Reporting cfg changed to Silabs");
+            flush_cfgchg();
         }
     }
 
@@ -447,6 +452,9 @@ static void msg_poll()
             case gmpoll_text:
                 printf ("\x02""D%s\x03\r\n", msg.data);
                 break;
+            case gmpoll_config:
+                printf ("\x02""C%s\x03\r\n", msg.data);
+                break;
             default:
                 printf ("\x02""U\x03\r\n");
                 break;
@@ -519,6 +527,39 @@ static int cmd_cfgdump(const struct shell *sh, size_t argc, char **argv)
     return 1;
 }
 
+
+static void chg_queue_flush(const char * msg)
+{
+    struct gmtrack_poll_msg pollm;
+    pollm.type = gmpoll_config;
+    pollm.len = strlen(msg);
+    memcpy (pollm.data, msg, pollm.len);
+    pollm.data[pollm.len] = 0;
+    add_msg(&pollm);
+}
+
+static void flush_cfgchg()
+{
+    char buf[60];
+    GpsParamsFlushChanged(buf, 60, chg_queue_flush);
+}
+
+static void chg_flush(const char * msg)
+{
+    printf ("CfgRow: %s\n", msg);
+}
+
+static int cmd_cfgchg(const struct shell *sh, size_t argc, char **argv)
+{
+    char buf[60];
+
+    int rv = GpsParamsFlushChanged(buf, 60, chg_flush);
+    printf ("%d parameters changed\n", rv);
+    flush_cfgchg();
+    return 1;
+}
+
+
 /* Define module thread */
 K_THREAD_DEFINE(gmtrack_task_id,
                 CONFIG_APP_GMTRACK_THREAD_STACK_SIZE,
@@ -530,3 +571,4 @@ SHELL_CMD_REGISTER(gpio, NULL, "get/set gpio 0/1", cmd_gpio);
 SHELL_CMD_REGISTER(serialtest, NULL, "Dump on serial <arg> sentences, infinite if 0 or missing param", cmd_serialtest);
 SHELL_CMD_REGISTER(silmsg, NULL, "Silabs msg", cmd_silmsg);
 SHELL_CMD_REGISTER(cfgdump, NULL, "Dump config", cmd_cfgdump);
+SHELL_CMD_REGISTER(cfgchg, NULL, "Dump config", cmd_cfgchg);

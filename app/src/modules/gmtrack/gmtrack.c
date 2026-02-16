@@ -11,6 +11,7 @@
 #include "app_common.h"
 #include "gmtrack.h"
 #include <zephyr/pm/device.h>
+#include "gpsparams.h"
 
 void my_expiry_function(struct k_timer *timer_id);
 void poll_test_fun(struct k_timer *timer_id);
@@ -238,6 +239,9 @@ static void gmtrack_init()
         LOG_ERR("gp14 add callback failed (%d)\n",err);
         return;
     }
+
+    GpsParamsTestFill();
+
     led_set(0);
     k_timer_start(&my_timer, K_MSEC(1000), K_NO_WAIT);
 }
@@ -509,6 +513,12 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
     return 0;
 }
 
+static int cmd_cfgdump(const struct shell *sh, size_t argc, char **argv)
+{
+    GpsParamsDump();
+    return 1;
+}
+
 /* Define module thread */
 K_THREAD_DEFINE(gmtrack_task_id,
                 CONFIG_APP_GMTRACK_THREAD_STACK_SIZE,
@@ -519,3 +529,4 @@ SHELL_CMD_REGISTER(led, NULL, "Turn led on and off", cmd_led);
 SHELL_CMD_REGISTER(gpio, NULL, "get/set gpio 0/1", cmd_gpio);
 SHELL_CMD_REGISTER(serialtest, NULL, "Dump on serial <arg> sentences, infinite if 0 or missing param", cmd_serialtest);
 SHELL_CMD_REGISTER(silmsg, NULL, "Silabs msg", cmd_silmsg);
+SHELL_CMD_REGISTER(cfgdump, NULL, "Dump config", cmd_cfgdump);

@@ -739,14 +739,15 @@ static void timer_send_data_stop(void)
 	}
 }
 
+struct cloud_msg cloud_msg = {
+	.type = CLOUD_SHADOW_UPDATE_REPORTED,
+};
+
 static void update_shadow_reported_section(const struct gps_config_params *config,
 					   uint32_t command_type,
 					   uint32_t command_id)
 {
 	int err;
-	struct cloud_msg cloud_msg = {
-		.type = CLOUD_SHADOW_UPDATE_REPORTED,
-	};
 	size_t encoded_len;
 
 	err = encode_shadow_parameters_to_cbor(config,

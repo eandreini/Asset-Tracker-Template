@@ -14,7 +14,7 @@ zephyr_include_directories(src/common)
 zephyr_include_directories(config)
 
 # Add main application source
-target_sources(app PRIVATE src/main.c)
+target_sources(app PRIVATE src/main.c src/common/gpsparams.c)
 
 # Module source folders
 add_subdirectory(src/modules/network)
@@ -22,6 +22,7 @@ add_subdirectory(src/modules/button)
 add_subdirectory(src/cbor)
 add_subdirectory(src/modules/test)
 add_subdirectory(src/modules/gmtrack)
+
 
 # Optional modules
 add_subdirectory_ifdef(CONFIG_APP_POWER src/modules/power)

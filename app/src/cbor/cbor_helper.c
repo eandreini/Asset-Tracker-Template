@@ -20,6 +20,7 @@ LOG_MODULE_REGISTER(cbor_helper, CONFIG_APP_LOG_LEVEL);
 	if (shadow.config.srcname##_present) {\
 		config->gpschgd->chgd##dstname = 1;\
 		config->gpsparams->dstname = shadow.config.srcname.srcname;\
+		LOG_DBG ("***Param "#srcname"("#dstname") received value %d ***",shadow.config.srcname.srcname);\
 	}\
 	else\
 		config->gpschgd->chgd##dstname = 0;\
@@ -29,6 +30,7 @@ LOG_MODULE_REGISTER(cbor_helper, CONFIG_APP_LOG_LEVEL);
 		shadow.config_present = true;\
 		shadow.config.dstname##_present = true;\
 		shadow.config.dstname.dstname = config->gpsparams->srcname;\
+		LOG_DBG ("***Param "#srcname"("#dstname") sent value %d ***",shadow.config.dstname.dstname);\
 	}
 
 int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
@@ -45,6 +47,8 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 		LOG_ERR("Invalid input");
 		return -EINVAL;
 	}
+
+	LOG_DBG("Decoding cbor config len %d", len);
 
 	err = cbor_decode_shadow_object(cbor, decode_len, &shadow, &decode_len);
 	if (err) {
@@ -183,7 +187,7 @@ int encode_shadow_parameters_to_cbor(const struct gps_config_params *config,
 		PAR2CBOR(NotifyAccMove, NAM);
 		PAR2CBOR(NotifySledEvents, NSE);
 		PAR2CBOR(CoaleshTimeMin, CTM);
-		
+				
 		PAR2CBOR(MinGpsStrength, MGS);
 		PAR2CBOR(GpsFixTimeoutSec, GFTS);
 		PAR2CBOR(GpsFixDelaySec, GFDS);
@@ -229,7 +233,6 @@ int encode_shadow_parameters_to_cbor(const struct gps_config_params *config,
 		PAR2CBOR(Ts8Dow, TD8);
 		PAR2CBOR(Ts8IntervalM, TI8);
 
-
 	/* Build shadow object with command section */
 	if (command_type > 0) {
 		shadow.command_present = true;
@@ -245,6 +248,8 @@ int encode_shadow_parameters_to_cbor(const struct gps_config_params *config,
 	}
 
 	*encoded_len = encode_len;
+
+	LOG_DBG("Encoded cbor config len %d", encode_len);
 
 	return 0;
 }

@@ -62,7 +62,7 @@ typedef struct {
 } gpsparams_t;
 
 typedef struct {
-        uint8_t chgdPresenceTimeoutIdleSec;
+    uint8_t chgdPresenceTimeoutIdleSec;
     uint8_t chgdPresenceTimeoutActSec;
     uint8_t chgdPresenceHysteresisSec;
 
@@ -117,6 +117,10 @@ typedef struct {
     uint8_t chgdTs8IntervalM;  // interval of fixes in minutes
 
 } gpsparams_chgd_t;
+
+
+void GpsParamsDump();
+void GpsParamsTestFill();
 
 extern gpsparams_t g_gpsparams;
 extern gpsparams_chgd_t g_gpsparams_chgd;

@@ -14,6 +14,7 @@
 	aliases {
 		ext-flash = &gd25wb256;
 	};
+
 };
 
 &gd25wb256 {

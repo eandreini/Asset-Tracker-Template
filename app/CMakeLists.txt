@@ -21,6 +21,7 @@ add_subdirectory(src/modules/network)
 add_subdirectory(src/modules/button)
 add_subdirectory(src/cbor)
 add_subdirectory(src/modules/test)
+add_subdirectory(src/modules/gmtrack)
 
 # Optional modules
 add_subdirectory_ifdef(CONFIG_APP_POWER src/modules/power)

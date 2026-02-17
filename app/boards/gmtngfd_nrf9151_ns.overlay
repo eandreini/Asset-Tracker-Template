@@ -7,14 +7,20 @@
 / {
 	/* Configure partition manager to use gd25wb256 as the external flash */
 	chosen {
-		nordic,modem-trace-uart = &uart1;
+		/*nordic,modem-trace-uart = &uart1;*/
 		nordic,pm-ext-flash = &gd25wb256;
+		zephyr,log-uart = &log_uarts; 
+		//zephyr,console = &uart0;
+		//zephyr,shell-uart = &uart0;
+	};
+	log_uarts: log-uarts {
+		compatible = "zephyr,log-uart";
+		uarts = <&uart1>;             /* puoi metterne anche più di una */
 	};
 
 	aliases {
 		ext-flash = &gd25wb256;
 	};
-
 };
 
 &gd25wb256 {
@@ -23,5 +29,5 @@
 
 &uart1 {
 	status = "okay";
-	current-speed = <1000000>;
+	//current-speed = <1000000>;
 };

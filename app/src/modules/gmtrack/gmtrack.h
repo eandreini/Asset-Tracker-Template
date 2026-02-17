@@ -32,6 +32,7 @@ enum gmtrack_poll_type {
     gmpoll_empty = 0,
     gmpoll_text = 1,
     gmpoll_config = 2,
+    gmpoll_ready = 3,
 };
 
 struct gmtrack_poll_msg {

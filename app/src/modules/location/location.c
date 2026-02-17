@@ -19,6 +19,8 @@
 #include "modem/lte_lc.h"
 #include "location.h"
 #include "location_helper.h"
+#include "gpsparams.h"
+
 
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
@@ -347,7 +349,6 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 
 	return SMF_EVENT_PROPAGATE;
 }
-
 static void state_location_search_active_entry(void *obj)
 {
 	ARG_UNUSED(obj);
@@ -355,8 +356,14 @@ static void state_location_search_active_entry(void *obj)
 	LOG_DBG("%s", __func__);
 
 	gnss_enable();
-
-	int err = location_request(NULL);
+	struct location_config cfg = {0};
+	location_config_defaults_set(&cfg, 0, NULL);
+	cfg.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
+	// calculate timeout to allow requested number of fixes
+	cfg.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;
+	cfg.methods->gnss.priority_mode = true;
+	
+	int err = location_request(&cfg);
 
 	if (err) {
 		LOG_WRN("location_request, error: %d", err);

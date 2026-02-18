@@ -333,7 +333,6 @@ static void state_location_search_active_entry(void *obj)
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
-	gnss_enable();
 	struct location_config cfg = {0};
 	location_config_defaults_set(&cfg, 0, NULL);
 	cfg.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;

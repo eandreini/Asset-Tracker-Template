@@ -878,7 +878,8 @@ static void command_execute(uint32_t command_type)
 }
 
 static void handle_cloud_shadow_response(struct main_state *state_object,
-					 const struct cloud_msg *msg)
+					 const struct cloud_msg *msg,
+					bool in_buffer_mode)
 {
 	int err;
 	struct gps_config_params config = { 0 };
@@ -908,6 +909,15 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	 */
 	config.sample_interval = state_object->sample_interval_sec;
 	config.update_interval = state_object->update_interval_sec;
+
+	/* Set buffer_mode based on what was applied or current state.
+	 * If the cloud sent a mode change request (buffer_mode_valid is true), report that.
+	 * Otherwise, report the current operating mode passed in by the caller.
+	 */
+	if (!config.buffer_mode_valid) {
+		config.buffer_mode = in_buffer_mode;
+		config.buffer_mode_valid = true;
+	}
 
 	/* Only process commands from delta responses, not from desired responses.
 	 * Delta responses contain only new commands that haven't been executed yet.
@@ -1098,7 +1108,7 @@ static enum smf_state_result buffer_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg);
+			handle_cloud_shadow_response(state_object, msg, true);
 
 			break;
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
@@ -1507,7 +1517,7 @@ static enum smf_state_result passthrough_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg);
+			handle_cloud_shadow_response(state_object, msg, false);
 
 			return SMF_EVENT_HANDLED;
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:

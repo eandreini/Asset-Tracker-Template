@@ -12,6 +12,9 @@
 #include "gmtrack.h"
 #include <zephyr/pm/device.h>
 #include "gpsparams.h"
+#include <date_time.h>
+
+#define DISABLE_UART1_AT_POWERUP 0
 
 void start_timer_fun(struct k_timer *timer_id);
 void poll_test_fun(struct k_timer *timer_id);
@@ -199,11 +202,15 @@ void start_timer_fun(struct k_timer *timer_id)
 {
     led_set(0);
     uart_disable();
+
+
+#if DISABLE_UART1_AT_POWERUP
     LOG_DBG("Disabling uart1");
     int err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_SUSPEND);
     if (err && (err != -EALREADY)) {
         LOG_ERR("pm_device_action_run, error: %d", err);
     }
+#endif
     signal_ready();
 }
 
@@ -518,6 +525,33 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
         else
             msg_cfgpar(argv[2], argv[3]);
     }
+    else if (strcmp (argv[1], "setsled") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "setbatt") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "setmac") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "setdate") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "start") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "fix") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "connect") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "info") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
+    else if (strcmp (argv[1], "info") == 0) {
+        printf ("\x02""OK\x03\r\n");
+    }
     else {
         printf ("\x02""ERR Bad command\x03\r\n");
     }
@@ -601,6 +635,14 @@ static int cmd_u1ena(const struct shell *sh, size_t argc, char **argv)
 }
 
 
+static int cmd_datetime(const struct shell *sh, size_t argc, char **argv)
+{
+    int64_t now;
+    int rv = date_time_now(&now);
+    printf ("Current unixtime rv: %d %lld\n", rv, now);
+    return 1;
+}
+
 /* Define module thread */
 K_THREAD_DEFINE(gmtrack_task_id,
                 CONFIG_APP_GMTRACK_THREAD_STACK_SIZE,
@@ -612,5 +654,6 @@ SHELL_CMD_REGISTER(gpio, NULL, "get/set gpio 0/1", cmd_gpio);
 SHELL_CMD_REGISTER(serialtest, NULL, "Dump on serial <arg> sentences, infinite if 0 or missing param", cmd_serialtest);
 SHELL_CMD_REGISTER(silmsg, NULL, "Silabs msg", cmd_silmsg);
 SHELL_CMD_REGISTER(cfgdump, NULL, "Dump config", cmd_cfgdump);
-SHELL_CMD_REGISTER(cfgchg, NULL, "Dump config", cmd_cfgchg);
-SHELL_CMD_REGISTER(u1ena, NULL, "Dump config", cmd_u1ena);
+SHELL_CMD_REGISTER(cfgchg, NULL, "Send changed config to SILAB", cmd_cfgchg);
+SHELL_CMD_REGISTER(u1ena, NULL, "Enable UART1 (LOG) interface", cmd_u1ena);
+SHELL_CMD_REGISTER(datetime, NULL, "Get date and time", cmd_datetime);

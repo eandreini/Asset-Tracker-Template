@@ -266,7 +266,7 @@ static void handle_gnss_location_data(const struct location_msg *location_msg)
 	timestamp_ms = location_msg->timestamp;
 	err = date_time_uptime_to_unix_time_ms(&timestamp_ms);
 	if (err) {
-		LOG_ERR("date_time_uptime_to_unix_time_ms, error: %d", err);
+		LOG_INF("date_time_uptime_to_unix_time_ms, error: %d", err);
 	}
 
 	struct nrf_cloud_gnss_data gnss_data = {

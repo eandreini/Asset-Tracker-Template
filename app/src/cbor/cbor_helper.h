@@ -5,11 +5,12 @@
  */
 
 #include <zephyr/types.h>
+#include "gpsparams.h"
 
 #define CLOUD_COMMAND_TYPE_PROVISION 1
 
 /** Device configuration parameters. */
-struct config_params {
+struct gps_config_params {
 	/** Update interval in seconds. */
 	uint32_t update_interval;
 
@@ -21,6 +22,10 @@ struct config_params {
 
 	/** Buffer mode validity flag */
 	bool buffer_mode_valid;
+
+	gpsparams_t * gpsparams;
+	gpsparams_chgd_t * gpschgd;
+
 };
 
 /**
@@ -38,7 +43,7 @@ struct config_params {
  */
 int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 				       size_t len,
-				       struct config_params *config,
+				       struct gps_config_params *config,
 				       uint32_t *command_type,
 				       uint32_t *command_id);
 
@@ -57,7 +62,7 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
  * @retval -ENOMEM Buffer too small.
  * @retval -EFAULT Encoding error.
  */
-int encode_shadow_parameters_to_cbor(const struct config_params *config,
+int encode_shadow_parameters_to_cbor(const struct gps_config_params *config,
 				     uint32_t command_type,
 				     uint32_t command_id,
 				     uint8_t *buffer,

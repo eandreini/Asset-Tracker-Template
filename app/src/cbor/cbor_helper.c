@@ -16,9 +16,26 @@
 
 LOG_MODULE_REGISTER(cbor_helper, CONFIG_APP_LOG_LEVEL);
 
+#define CBOR2PAR(srcname,dstname)\
+	if (shadow.config.srcname##_present) {\
+		config->gpschgd->chgd##dstname = 1;\
+		config->gpsparams->dstname = shadow.config.srcname.srcname;\
+		LOG_DBG ("***Param "#srcname"("#dstname") received value %d ***",shadow.config.srcname.srcname);\
+	}\
+	else\
+		config->gpschgd->chgd##dstname = 0;\
+
+#define PAR2CBOR(srcname,dstname)\
+	if (config->gpschgd->chgd##srcname) {\
+		shadow.config_present = true;\
+		shadow.config.dstname##_present = true;\
+		shadow.config.dstname.dstname = config->gpsparams->srcname;\
+		LOG_DBG ("***Param "#srcname"("#dstname") sent value %d ***",shadow.config.dstname.dstname);\
+	}
+
 int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 				       size_t len,
-				       struct config_params *config,
+				       struct gps_config_params *config,
 				       uint32_t *command_type,
 				       uint32_t *command_id)
 {
@@ -30,6 +47,8 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 		LOG_ERR("Invalid input");
 		return -EINVAL;
 	}
+
+	LOG_DBG("Decoding cbor config len %d", len);
 
 	err = cbor_decode_shadow_object(cbor, decode_len, &shadow, &decode_len);
 	if (err) {
@@ -57,6 +76,61 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 			LOG_DBG("Configuration: Decoded buffer_mode = %s",
 				config->buffer_mode ? "enabled" : "disabled");
 		}
+
+		CBOR2PAR(PTIS, PresenceTimeoutIdleSec);
+		CBOR2PAR(PTAC, PresenceTimeoutActSec);
+		CBOR2PAR(PHS, PresenceHysteresisSec);
+		
+		CBOR2PAR(NPS, NotifyPresenceLost);
+		CBOR2PAR(NAM, NotifyAccMove);
+		CBOR2PAR(NSE, NotifySledEvents);
+		CBOR2PAR(CTM, CoaleshTimeMin);
+		
+		CBOR2PAR(MGS, MinGpsStrength);
+		CBOR2PAR(GFTS, GpsFixTimeoutSec);
+		CBOR2PAR(GFDS, GpsFixDelaySec);
+		
+		CBOR2PAR(LMS, LteMinStrenght);
+		CBOR2PAR(LTS, LteTimeoutSec);
+		CBOR2PAR(LODFM, LteOnDemandFreqMin);
+		CBOR2PAR(LODOM, LteOnDemandOffsetMin);
+		CBOR2PAR(LCONF, LteConnOnNoFix);
+		CBOR2PAR(GAIH, GpsAidIntervalH);
+		CBOR2PAR(GAIND, GpsAidNumDays);
+		CBOR2PAR(GAOM, GpsAidOnlyM1);
+		
+		CBOR2PAR(TR1, Ts1Range);
+		CBOR2PAR(TD1, Ts1Dow);
+		CBOR2PAR(TI1, Ts1IntervalM);
+
+		CBOR2PAR(TR2, Ts2Range);
+		CBOR2PAR(TD2, Ts2Dow);
+		CBOR2PAR(TI2, Ts2IntervalM);
+
+		CBOR2PAR(TR3, Ts3Range);
+		CBOR2PAR(TD3, Ts3Dow);
+		CBOR2PAR(TI3, Ts3IntervalM);
+
+		CBOR2PAR(TR4, Ts4Range);
+		CBOR2PAR(TD4, Ts4Dow);
+		CBOR2PAR(TI4, Ts4IntervalM);
+
+		CBOR2PAR(TR5, Ts5Range);
+		CBOR2PAR(TD5, Ts5Dow);
+		CBOR2PAR(TI5, Ts5IntervalM);
+
+		CBOR2PAR(TR6, Ts6Range);
+		CBOR2PAR(TD6, Ts6Dow);
+		CBOR2PAR(TI6, Ts6IntervalM);
+
+		CBOR2PAR(TR7, Ts7Range);
+		CBOR2PAR(TD7, Ts7Dow);
+		CBOR2PAR(TI7, Ts7IntervalM);
+
+		CBOR2PAR(TR8, Ts8Range);
+		CBOR2PAR(TD8, Ts8Dow);
+		CBOR2PAR(TI8, Ts8IntervalM);
+
 	}
 
 	if (shadow.command_present) {
@@ -71,7 +145,7 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor,
 	return 0;
 }
 
-int encode_shadow_parameters_to_cbor(const struct config_params *config,
+int encode_shadow_parameters_to_cbor(const struct gps_config_params *config,
 				     uint32_t command_type,
 				     uint32_t command_id,
 				     uint8_t *buffer,
@@ -105,6 +179,60 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config,
 		shadow.config.buffer_mode.buffer_mode = config->buffer_mode;
 	}
 
+		PAR2CBOR(PresenceTimeoutIdleSec, PTIS);
+		PAR2CBOR(PresenceTimeoutActSec, PTAC);
+		PAR2CBOR(PresenceHysteresisSec, PHS);
+		
+		PAR2CBOR(NotifyPresenceLost, NPS);
+		PAR2CBOR(NotifyAccMove, NAM);
+		PAR2CBOR(NotifySledEvents, NSE);
+		PAR2CBOR(CoaleshTimeMin, CTM);
+				
+		PAR2CBOR(MinGpsStrength, MGS);
+		PAR2CBOR(GpsFixTimeoutSec, GFTS);
+		PAR2CBOR(GpsFixDelaySec, GFDS);
+		
+		PAR2CBOR(LteMinStrenght, LMS);
+		PAR2CBOR(LteTimeoutSec, LTS);
+		PAR2CBOR(LteOnDemandFreqMin, LODFM);
+		PAR2CBOR(LteOnDemandOffsetMin, LODOM);
+		PAR2CBOR(LteConnOnNoFix, LCONF);
+		PAR2CBOR(GpsAidIntervalH, GAIH);
+		PAR2CBOR(GpsAidNumDays, GAIND);
+		PAR2CBOR(GpsAidOnlyM1, GAOM);
+		
+		PAR2CBOR(Ts1Range, TR1);
+		PAR2CBOR(Ts1Dow, TD1);
+		PAR2CBOR(Ts1IntervalM, TI1);
+
+		PAR2CBOR(Ts2Range, TR2);
+		PAR2CBOR(Ts2Dow, TD2);
+		PAR2CBOR(Ts2IntervalM, TI2);
+
+		PAR2CBOR(Ts3Range, TR3);
+		PAR2CBOR(Ts3Dow, TD3);
+		PAR2CBOR(Ts3IntervalM, TI3);
+
+		PAR2CBOR(Ts4Range, TR4);
+		PAR2CBOR(Ts4Dow, TD4);
+		PAR2CBOR(Ts4IntervalM, TI4);
+
+		PAR2CBOR(Ts5Range, TR5);
+		PAR2CBOR(Ts5Dow, TD5);
+		PAR2CBOR(Ts5IntervalM, TI5);
+
+		PAR2CBOR(Ts6Range, TR6);
+		PAR2CBOR(Ts6Dow, TD6);
+		PAR2CBOR(Ts6IntervalM, TI6);
+
+		PAR2CBOR(Ts7Range, TR7);
+		PAR2CBOR(Ts7Dow, TD7);
+		PAR2CBOR(Ts7IntervalM, TI7);
+
+		PAR2CBOR(Ts8Range, TR8);
+		PAR2CBOR(Ts8Dow, TD8);
+		PAR2CBOR(Ts8IntervalM, TI8);
+
 	/* Build shadow object with command section */
 	if (command_type > 0) {
 		shadow.command_present = true;
@@ -120,6 +248,8 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config,
 	}
 
 	*encoded_len = encode_len;
+
+	LOG_DBG("Encoded cbor config len %d", encode_len);
 
 	return 0;
 }

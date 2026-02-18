@@ -1,0 +1,37 @@
+menuconfig APP_TEST
+    bool "Test module"
+    default y
+    help
+        Enable the test module.
+
+if APP_TEST
+
+config APP_TEST_LOG_LEVEL
+    int "Test module log level"
+    default 4
+    help
+        Log level for test module.
+
+config APP_TEST_THREAD_STACK_SIZE
+    int "Test module thread stack size"
+    default 1024
+    help
+        Stack size for the test module thread.
+
+config APP_TEST_WATCHDOG_TIMEOUT_SECONDS
+    int "Test module watchdog timeout in seconds"
+    default 30
+    help
+        Watchdog timeout for the test module.
+
+config APP_TEST_MSG_PROCESSING_TIMEOUT_SECONDS
+    int "Test module message processing timeout in seconds"
+    default 5
+    help
+        Maximum time allowed for processing a single message in the test module.
+
+module = APP_TEST
+module-str = TEST
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_TEST

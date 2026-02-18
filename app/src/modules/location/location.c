@@ -19,6 +19,8 @@
 #include "modem/lte_lc.h"
 #include "location.h"
 #include "location_helper.h"
+#include "gpsparams.h"
+
 
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
@@ -326,14 +328,20 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 
 	return SMF_EVENT_PROPAGATE;
 }
-
 static void state_location_search_active_entry(void *obj)
 {
 	ARG_UNUSED(obj);
 
 	LOG_DBG("%s", __func__);
-
-	int err = location_request(NULL);
+	gnss_enable();
+	struct location_config cfg = {0};
+	location_config_defaults_set(&cfg, 0, NULL);
+	cfg.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
+	// calculate timeout to allow requested number of fixes
+	cfg.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;
+	cfg.methods->gnss.priority_mode = true;
+	
+	int err = location_request(&cfg);
 
 	if (err) {
 		LOG_WRN("location_request, error: %d", err);
@@ -502,7 +510,7 @@ static void location_event_handler(const struct location_event_data *event_data)
 #if defined(CONFIG_NRF_CLOUD_AGNSS)
 	case LOCATION_EVT_GNSS_ASSISTANCE_REQUEST:
 		LOG_DBG("A-GNSS assistance request received from location library");
-		agnss_request_send(&event_data->agnss_request);
+		//agnss_request_send(&event_data->agnss_request);
 		break;
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 	case LOCATION_EVT_RESULT_UNKNOWN:

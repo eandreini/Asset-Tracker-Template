@@ -11,7 +11,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 #include <zephyr/sys/reboot.h>
-
+#include <zephyr/shell/shell.h>
 #include "app_common.h"
 #include "button.h"
 #include "modules/button/button.h"
@@ -22,6 +22,10 @@
 #include "location.h"
 #include "storage.h"
 #include "cbor_helper.h"
+#include "test.h"
+#include <date_time.h>
+#include <zephyr/drivers/gpio.h>
+#include "modules/gmtrack/gmtrack.h"
 
 #if defined(CONFIG_APP_LED)
 #include "led.h"
@@ -43,6 +47,10 @@ LOG_MODULE_REGISTER(main, 4);
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
+
+gpsparams_t g_gpsparams;
+gpsparams_chgd_t g_gpsparams_chgd;
+
 
 enum timer_msg_type {
 	/* Timer for sampling data has expired.
@@ -68,6 +76,7 @@ enum timer_msg_type {
 	TIMER_CONFIG_CHANGED,
 };
 
+
 ZBUS_CHAN_DEFINE(TIMER_CHAN,
 		 enum timer_msg_type,
 		 NULL,
@@ -92,7 +101,8 @@ ZBUS_CHAN_DEFINE(TIMER_CHAN,
 	X(NETWORK_CHAN,		struct network_msg)		\
 	X(LOCATION_CHAN,	struct location_msg)		\
 	X(STORAGE_CHAN,		struct storage_msg)		\
-	X(TIMER_CHAN,		enum timer_msg_type)
+	X(TIMER_CHAN,		enum timer_msg_type) \
+	X(TEST_CHAN,		struct test_msg) \
 
 /* Calculate the maximum message size from the list of channels */
 #define MAX_MSG_SIZE				MAX_MSG_SIZE_FROM_LIST(CHANNEL_LIST)
@@ -117,6 +127,11 @@ static void timer_send_data_stop(void);
 /* Delayable work used to schedule triggers */
 static K_WORK_DELAYABLE_DEFINE(timer_send_data_work, timer_send_data_work_fn);
 static K_WORK_DELAYABLE_DEFINE(timer_sample_data_work, timer_sample_data_work_fn);
+
+/* Forward declarations of state handlers */
+static void test_entry(void *o);
+static enum smf_state_result test_run(void *o);
+
 
 /* Forward declarations of state handlers */
 static void running_entry(void *o);
@@ -222,6 +237,8 @@ enum state {
 		STATE_FOTA_APPLYING_IMAGE,
 		/* Rebooting */
 		STATE_FOTA_REBOOTING,
+	/* Initial state for first runup test */
+	STATE_TEST,
 };
 
 /* State object for the app module.
@@ -269,6 +286,13 @@ struct main_state {
 /* Construct state table */
 static const struct smf_state states[] = {
 	/* Top-level states */
+	[STATE_TEST] = SMF_CREATE_STATE(
+		test_entry,
+		test_run,
+		NULL,
+		NULL,
+		NULL
+	),
 	[STATE_RUNNING] = SMF_CREATE_STATE(
 		running_entry,
 		running_run,
@@ -720,14 +744,15 @@ static void timer_send_data_stop(void)
 	}
 }
 
-static void update_shadow_reported_section(const struct config_params *config,
+struct cloud_msg cloud_msg = {
+	.type = CLOUD_SHADOW_UPDATE_REPORTED,
+};
+
+static void update_shadow_reported_section(const struct gps_config_params *config,
 					   uint32_t command_type,
 					   uint32_t command_id)
 {
 	int err;
-	struct cloud_msg cloud_msg = {
-		.type = CLOUD_SHADOW_UPDATE_REPORTED,
-	};
 	size_t encoded_len;
 
 	err = encode_shadow_parameters_to_cbor(config,
@@ -756,13 +781,28 @@ static void update_shadow_reported_section(const struct config_params *config,
 		config->buffer_mode ? "buffer" : "passthrough");
 }
 
-static void config_apply(struct main_state *state_object, const struct config_params *config)
+static void config_apply(struct main_state *state_object, const struct gps_config_params *config)
 {
 	int err;
 	struct storage_msg storage_msg = {
 		.type = STORAGE_MODE_PASSTHROUGH_REQUEST,
 	};
 	bool interval_changed = false;
+
+
+	if (GpsParamsIsChanged()) {
+		// publish change to gmtrack
+		struct gmtrack_msg gmtrack_msg = {
+			.type = GMTRACK_CONFIG_CHG,
+		};
+		err = zbus_chan_pub(&GMTRACK_CHAN, &gmtrack_msg, K_MSEC(ZBUS_PUBLISH_TIMEOUT_MS));
+		if (err) {
+			LOG_ERR("Failed to publish gmtrack cfg change, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
+	}
 
 	if (!config->sample_interval &&
 	    !config->update_interval &&
@@ -797,6 +837,8 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 
 		return;
 	}
+
+
 
 	/* Notify waiting states that configuration has changed and timers need restart */
 	if (interval_changed) {
@@ -836,13 +878,14 @@ static void command_execute(uint32_t command_type)
 }
 
 static void handle_cloud_shadow_response(struct main_state *state_object,
-					 const struct cloud_msg *msg,
-					 bool in_buffer_mode)
+					 const struct cloud_msg *msg)
 {
 	int err;
-	struct config_params config = { 0 };
+	struct gps_config_params config = { 0 };
 	uint32_t command_type = 0;
 	uint32_t command_id = 0;
+	config.gpsparams = &g_gpsparams;
+	config.gpschgd = &g_gpsparams_chgd;
 
 	err = decode_shadow_parameters_from_cbor(msg->response.buffer,
 						 msg->response.buffer_data_len,
@@ -866,15 +909,6 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	config.sample_interval = state_object->sample_interval_sec;
 	config.update_interval = state_object->update_interval_sec;
 
-	/* Set buffer_mode based on what was applied or current state.
-	 * If the cloud sent a mode change request (buffer_mode_valid is true), report that.
-	 * Otherwise, report the current operating mode passed in by the caller.
-	 */
-	if (!config.buffer_mode_valid) {
-		config.buffer_mode = in_buffer_mode;
-		config.buffer_mode_valid = true;
-	}
-
 	/* Only process commands from delta responses, not from desired responses.
 	 * Delta responses contain only new commands that haven't been executed yet.
 	 * While desired responses may contain old commands that have already been executed.
@@ -882,6 +916,12 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 	if (msg->type == CLOUD_SHADOW_RESPONSE_DELTA) {
 		/* Clear the shadow delta by reporting back the command to the cloud. */
 		update_shadow_reported_section(&config, command_type, command_id);
+		/* Workaround: Add a 5-second delay to ensure that nRF Cloud clears the
+		 * delta internally before executing the command. If the command is a
+		 * provisioning request, the device will disconnect from the cloud. If this
+		 * happens too quickly, nRF Cloud may not clear the delta properly.
+		 */
+		k_sleep(K_SECONDS(5));
 		command_execute(command_type);
 	} else {
 		/* For desired responses (initial shadow poll), only report config without
@@ -1058,17 +1098,19 @@ static enum smf_state_result buffer_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg, true);
+			handle_cloud_shadow_response(state_object, msg);
 
 			break;
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
 			LOG_DBG("Received empty shadow response from cloud");
 
-			struct config_params config = {
+			struct gps_config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
 				.buffer_mode = true,
 				.buffer_mode_valid = true,
+				.gpsparams = &g_gpsparams,
+				.gpschgd = &g_gpsparams_chgd
 			};
 
 			update_shadow_reported_section(&config, 0, 0);
@@ -1465,17 +1507,20 @@ static enum smf_state_result passthrough_connected_run(void *o)
 		case CLOUD_SHADOW_RESPONSE_DESIRED:
 			__fallthrough;
 		case CLOUD_SHADOW_RESPONSE_DELTA:
-			handle_cloud_shadow_response(state_object, msg, false);
+			handle_cloud_shadow_response(state_object, msg);
 
 			return SMF_EVENT_HANDLED;
 		case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
 			LOG_DBG("Received empty shadow response from cloud");
 
-			struct config_params config = {
+			struct gps_config_params config = {
 				.update_interval = state_object->update_interval_sec,
 				.sample_interval = state_object->sample_interval_sec,
 				.buffer_mode = false,
 				.buffer_mode_valid = true,
+				.gpsparams = &g_gpsparams,
+				.gpschgd = &g_gpsparams_chgd
+
 			};
 
 			update_shadow_reported_section(&config, 0, 0);
@@ -1956,6 +2001,7 @@ static void fota_rebooting_entry(void *o)
 	sys_reboot(SYS_REBOOT_COLD);
 }
 
+
 int main(void)
 {
 	int err;
@@ -1969,7 +2015,7 @@ int main(void)
 	main_state.sample_interval_sec = CONFIG_APP_BUFFER_MODE_SAMPLING_INTERVAL_SECONDS;
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
 
-	LOG_DBG("Main has started");
+	LOG_DBG("Main has started - pre mcu update via ble !!!");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {
@@ -1980,11 +2026,15 @@ int main(void)
 	}
 
 	/* Set initial state - the hierarchy will automatically transition to correct mode */
+
+#if 0
 	if (IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)) {
 		smf_set_initial(SMF_CTX(&main_state), &states[STATE_PASSTHROUGH_MODE]);
 	} else {
 		smf_set_initial(SMF_CTX(&main_state), &states[STATE_BUFFER_MODE]);
 	}
+#endif
+	smf_set_initial(SMF_CTX(&main_state), &states[STATE_TEST]);
 
 	while (1) {
 		err = task_wdt_feed(task_wdt_id);
@@ -2015,3 +2065,148 @@ int main(void)
 		}
 	}
 }
+
+static int cmd_run_test(const struct shell *sh, size_t argc, char **argv)
+{
+	struct test_msg request = {
+		.type = TEST_REQUEST,
+		.value = 0
+	};
+	int err = zbus_chan_pub(&TEST_CHAN, &request, K_NO_WAIT);
+	if (err) {
+		LOG_ERR("Failed to publish response: %d", err);
+		SEND_FATAL_ERROR();
+		return -1;
+	}
+	return 0;
+}
+static int cmd_start_app(const struct shell *sh, size_t argc, char **argv)
+{
+	struct test_msg start = {
+		.type = TEST_STARTAPP,
+		.value = 0
+	};
+	int err = zbus_chan_pub(&TEST_CHAN, &start, K_NO_WAIT);
+	if (err) {
+		LOG_ERR("Failed to publish response: %d", err);
+		SEND_FATAL_ERROR();
+		return -1;
+	}
+	const struct network_msg msg = {
+		.type = NETWORK_CONNECT,
+	};
+
+	err = zbus_chan_pub(&NETWORK_CHAN, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+
+	return 0;
+}
+
+char g_bt_mac[16];
+char g_bt_sled[20];
+int g_bt_batt;
+#include <string.h>
+#include <stdlib.h>
+
+
+
+static int cmd_set_mac(const struct shell *sh, size_t argc, char **argv)
+{
+	if (argc == 2 && strlen(argv[1]) == 12) {
+		strcpy (g_bt_mac, argv[1]);
+		return 0;
+	}
+	return 1;
+}
+static int cmd_set_sled(const struct shell *sh, size_t argc, char **argv)
+{
+	if (argc == 2 && strlen(argv[1]) == 16) {
+		strcpy (g_bt_sled, argv[1]);
+		return 0;
+	}
+	return 1;
+}
+static int cmd_set_batt(const struct shell *sh, size_t argc, char **argv)
+{
+	if (argc == 2) {
+		g_bt_batt = atoi(argv[1]);
+		if (g_bt_batt > 0)
+			return 0;
+	}
+	return 1;
+}
+static int cmd_show_btinfo(const struct shell *sh, size_t argc, char **argv)
+{
+	shell_print (sh, "MAC:    %s", g_bt_mac);
+	shell_print (sh, "SLED:   %s", g_bt_sled);
+	shell_print (sh, "BATT:   %d", g_bt_batt);
+	return 0;
+}
+static int cmd_send_btinfo(const struct shell *sh, size_t argc, char **argv)
+{
+	char pl[128];
+
+	int64_t now;
+	date_time_now(&now);
+
+	sprintf (pl, "{\"appId\":\"TEMP\", \"messageType\":\"DATA\",\"data\":\"%d\",\"ts\":%llu}", g_bt_batt, now);
+	struct cloud_msg msg = {
+		.type = CLOUD_PAYLOAD_JSON,
+		.payload.buffer_data_len = strlen(pl)
+	};
+	memcpy (msg.payload.buffer, pl, msg.payload.buffer_data_len);
+	int err = zbus_chan_pub(&CLOUD_CHAN, &msg, K_NO_WAIT);
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+	return 0;
+
+}
+/*
+TO retrieve messages from cloud:
+
+curl -G https://api.nrfcloud.com/v1/messages -d "start=2025-12-18T00:00:00.000Z&end=2025-12-18T18:30:00.000Z&pageLimit=100" -H "Authorization: Bearer b6bd3341b8b213f3833ec5118f6533afd1efedd1" | jq.exe
+
+*/
+
+
+static void 
+test_entry(void *o)
+{
+	LOG_INF("Test state entered");
+}
+static enum smf_state_result test_run(void *o)
+{
+	struct main_state *state_object = (struct main_state *)o;
+
+	if (state_object->chan == &TEST_CHAN &&
+	    MSG_TO_TEST_TYPE(state_object->msg_buf).type == TEST_STARTAPP) {
+			LOG_INF("Start app received");
+			if (IS_ENABLED(CONFIG_APP_STORAGE_INITIAL_MODE_PASSTHROUGH)) {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_PASSTHROUGH_MODE]);
+			} 
+			else {
+				smf_set_state(SMF_CTX(state_object), &states[STATE_BUFFER_MODE]);
+			}
+		return SMF_EVENT_HANDLED;
+	}
+	else if (state_object->chan == &TEST_CHAN &&
+	    MSG_TO_TEST_TYPE(state_object->msg_buf).type == TEST_RESPONSE) {
+			LOG_INF("Test response received");
+		return SMF_EVENT_HANDLED;
+	}
+
+	return SMF_EVENT_PROPAGATE;
+}
+
+SHELL_CMD_REGISTER(run_test, NULL, "Run initial test", cmd_run_test);
+SHELL_CMD_REGISTER(start_app, NULL, "End initial test and start app", cmd_start_app);
+SHELL_CMD_REGISTER(set_mac, NULL, "Set BT Mac address", cmd_set_mac);
+SHELL_CMD_REGISTER(set_sled, NULL, "Set SLED Mac address", cmd_set_sled);
+SHELL_CMD_REGISTER(set_batt, NULL, "Set BT BATT address", cmd_set_batt);
+SHELL_CMD_REGISTER(show_bt_info, NULL, "Show BT info", cmd_show_btinfo);
+SHELL_CMD_REGISTER(send_bt_info, NULL, "Send BT info", cmd_send_btinfo);

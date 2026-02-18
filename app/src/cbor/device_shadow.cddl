@@ -36,8 +36,57 @@ shadow-object = {
         ? "update_interval": uint .size 4,
         ? "sample_interval": uint .size 4,
         ? "buffer_mode": bool,
+
+        ? "PTAC": uint .size 2,
+        ? "PTIS": uint .size 2,
+        ? "GFDS": uint .size 1,
+        ? "GAOM": uint .size 1,
+        ? "NSE": uint .size 1,
+        ? "GAIND": uint .size 1,
+        ? "LCONF": uint .size 1,
+        ? "GFTS": uint .size 1,
+        ? "LTS": uint .size 1,
+        ? "NPS": uint .size 1,
+        ? "GAIH": uint .size 1,
+        ? "PHS": uint .size 2,
+
+        ? "TI2": uint .size 1,
+        ? "TI1": uint .size 1,
+        ? "TI4": uint .size 1,
+        ? "TI3": uint .size 1,
+        ? "TI6": uint .size 1,
+        ? "TI5": uint .size 1,
+        ? "TI8": uint .size 1,
+        ? "TI7": uint .size 1,
+
+        ? "LODOM": uint .size 2,
+        ? "LMS": uint .size 1,
+        ? "MGS": uint .size 1,
+        ? "NAM": uint .size 1,
+        ? "LODFM": uint .size 2,
+        ? "CTM": uint .size 1,
+
+        ? "TR1": uint .size 4,
+        ? "TD1": uint .size 1,
+
+        ? "TR2": uint .size 4,
+        ? "TD2": uint .size 1,
+
+        ? "TR3": uint .size 4,
+        ? "TR4": uint .size 4,
+        ? "TD4": uint .size 1,
+        ? "TR5": uint .size 4,
+        ? "TD5": uint .size 1,
+        ? "TR6": uint .size 4,
+        ? "TD6": uint .size 1,
+        ? "TR7": uint .size 4,
+        ? "TD7": uint .size 1,
+        ? "TR8": uint .size 4,
+        ? "TD8": uint .size 1,
+        ? "TD3": uint .size 1,
         * tstr => any
     },
     ? "command": [type: uint .size 4 .ge 1 .le 1, id: uint .size 4 .ge 1 .le 4294967295],
     * tstr => any
 }
+

@@ -14,6 +14,8 @@
 #include "gpsparams.h"
 #include <date_time.h>
 
+gmtrack_info_t g_gmtrack_info;
+
 #define DISABLE_UART1_AT_POWERUP 0
 
 void start_timer_fun(struct k_timer *timer_id);
@@ -525,16 +527,54 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
         else
             msg_cfgpar(argv[2], argv[3]);
     }
-    else if (strcmp (argv[1], "setsled") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp (argv[1], "setsled") == 0 && argc == 3) {
+        LOG_DBG("Received sled update %s",argv[2]);
+        if (strlen(argv[2] != 16)) {
+            printf("\x02""ERR Bad len\x03\r\n");
+
+        }
+        char hi[10];
+        char lo[10];
+        
+
+        if (sscanf (argv[2], "%lx", &g_gmtrack_info.sled) != 1)
+            printf("\x02""ERR\x03\r\n");
+        else {
+            LOG_DBG("Sled: %llx", g_gmtrack_info.sled);
+            printf ("\x02""OK\x03\r\n");
+        }
     }
-    else if (strcmp (argv[1], "setbatt") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp (argv[1], "setbatt") == 0 && argc == 3) {
+        LOG_DBG("Received batt update %s",argv[2]);
+        if (sscanf (argv[2], "%d", &g_gmtrack_info.battlevel) != 1)
+            printf("\x02""ERR\x03\r\n");
+        else {
+            LOG_DBG("Sled: %d", g_gmtrack_info.battlevel);
+            printf ("\x02""OK\x03\r\n");
+        }
     }
-    else if (strcmp (argv[1], "setmac") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp (argv[1], "setmac") == 0 && argc == 3) {
+        LOG_DBG("Received mac update %s",argv[2]);
+        if (sscanf (argv[2], "%llx", &g_gmtrack_info.sled) != 1)
+            printf("\x02""ERR\x03\r\n");
+        else {
+            LOG_DBG("Mac: %llx", g_gmtrack_info.mac);
+            printf ("\x02""OK\x03\r\n");
+        }
     }
-    else if (strcmp (argv[1], "setdate") == 0) {
+    else if (strcmp (argv[1], "setdate") == 0 && argc == 3) {
+        LOG_DBG("Received date update %s",argv[2]);
+        uint32_t sec;
+        uint32_t ms;
+        for (char * p = argv[2]; *p != 0; p++) {
+            if (*p == '.')
+                *p = ' ';
+        }
+        if (sscanf (argv[2], "%d %d", &sec, &ms) != 2)
+            printf("\x02""ERR\x03\r\n");
+        else {
+            LOG_DBG("Ts: %d %d", sec, ms);
+        }
         printf ("\x02""OK\x03\r\n");
     }
     else if (strcmp (argv[1], "start") == 0) {
@@ -544,9 +584,6 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
         printf ("\x02""OK\x03\r\n");
     }
     else if (strcmp (argv[1], "connect") == 0) {
-        printf ("\x02""OK\x03\r\n");
-    }
-    else if (strcmp (argv[1], "info") == 0) {
         printf ("\x02""OK\x03\r\n");
     }
     else if (strcmp (argv[1], "info") == 0) {

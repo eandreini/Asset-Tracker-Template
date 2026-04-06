@@ -43,6 +43,15 @@ struct gmtrack_poll_msg {
     char data[60];
 };
 
+
+typedef struct gmtrack_info {
+    uint64_t sled;
+    uint64_t mac;
+    int battlevel;
+} gmtrack_info_t;
+
+extern gmtrack_info_t g_gmtrack_info;
+
 #define MSG_TO_GMTRACK_TYPE(_msg) (*(const struct gmtrack_msg *)_msg)
 
 #ifdef __cplusplus

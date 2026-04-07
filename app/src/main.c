@@ -1004,6 +1004,7 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 		const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
 
 		if (msg->type == FOTA_MODULE_READY) {
+			LOG_DBG("FOTA module is ready");
 			state_object->modules_ready.fota_ready = true;
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
@@ -1022,6 +1023,7 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_MODULE_READY) {
+			LOG_DBG("Location module is ready");
 			state_object->modules_ready.location_ready = true;
 			check_modules_ready(state_object);
 			return SMF_EVENT_HANDLED;
@@ -1033,6 +1035,7 @@ static enum smf_state_result waiting_for_modules_init_run(void *o)
 			(const struct priv_main_msg *)state_object->msg_buf;
 
 		if (msg->type == MAIN_MODULES_READY) {
+			LOG_DBG("MAIN_MODULES_READY received, all modules are ready, transitioning to RUNNING state");
 			smf_set_state(SMF_CTX(state_object), &states[STATE_RUNNING]);
 			return SMF_EVENT_HANDLED;
 		}

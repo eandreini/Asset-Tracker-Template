@@ -23,6 +23,10 @@
 #include "location.h"
 #include "location_helper.h"
 
+/* GM BEGIN - added for gps parameters */
+#include "gpsparams.h"
+/* GM END */
+
 LOG_MODULE_REGISTER(location_module, CONFIG_APP_LOCATION_LOG_LEVEL);
 
 BUILD_ASSERT(CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS >
@@ -361,7 +365,20 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 		} else if (location_msg->type == LOCATION_SEARCH_TRIGGER) {
 			LOG_DBG("Location search trigger received");
 
+			/* GM BEGIN - use specific configuration */
+			struct location_config cfg = {0};
+			location_config_defaults_set(&cfg, 0, NULL);
+			cfg.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
+			// calculate timeout to allow requested number of fixes
+			cfg.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;
+			cfg.methods->gnss.priority_mode = true;
+
+			err = location_request(&cfg);
+			/* GM ELSE 
 			err = location_request(NULL);
+			*/
+			/* GM END */
+
 			if (err) {
 				LOG_WRN("location_request, error: %d", err);
 				SEND_FATAL_ERROR();
@@ -381,6 +398,13 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 			LOG_DBG("GNSS fix trigger received");
 
 			location_config_defaults_set(&config, 1, methods);
+
+			/* GM BEGIN - use specific configuration for GNSS */
+			config.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
+			// calculate timeout to allow requested number of fixes
+			config.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;
+			config.methods->gnss.priority_mode = true;
+			/* GM END */
 
 			err = location_request(&config);
 			if (err) {

@@ -16,6 +16,8 @@
 
 LOG_MODULE_REGISTER(cbor_helper, CONFIG_APP_LOG_LEVEL);
 
+
+
 int decode_shadow_parameters_from_cbor(const uint8_t *cbor, size_t len,
 				       struct config_params *config, uint32_t *command_type,
 				       uint32_t *command_id)
@@ -56,6 +58,10 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor, size_t len,
 			LOG_DBG("Configuration: Decoded storage_threshold = %d",
 				config->storage_threshold);
 		}
+
+		/* GM BEGIN - gps params */
+		GpsParamsDecodeFromCbor(&shadow, &config->gpsparams, &config->gpsparams_chgd);
+		/* GM END */
 	}
 
 	if (shadow.command_present) {
@@ -105,6 +111,9 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config, uint32_
 		shadow.command.type = command_type;
 		shadow.command.id = command_id;
 	}
+
+
+	GpsParamsEncodeToCbor(&config->gpsparams, &config->gpsparams_chgd, &shadow);
 
 	/* Encode the shadow object to CBOR */
 	err = cbor_encode_shadow_object(buffer, buffer_size, &shadow, &encode_len);

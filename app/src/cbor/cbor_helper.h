@@ -5,6 +5,9 @@
  */
 
 #include <zephyr/types.h>
+/* GM BEGIN - gps params */
+#include "gpsparams.h"
+/* GM END */
 
 #define CLOUD_COMMAND_TYPE_PROVISION 1
 
@@ -21,6 +24,11 @@ struct config_params {
 
 	/** Separate validity flag as 0 is a valid option for storage_threshold */
 	bool storage_threshold_valid;
+
+	/* GM BEGIN - gps params */
+	gpsparams_t gpsparams;
+	gpsparams_chgd_t gpsparams_chgd;
+	/* GM END */
 };
 
 /**

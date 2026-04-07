@@ -1,0 +1,37 @@
+menuconfig APP_GMTRACK
+    bool "Gmtrack module"
+    default y
+    help
+        Enable the test module.
+
+if APP_GMTRACK
+
+config APP_GMTRACK_LOG_LEVEL
+    int "Gmtrack module log level"
+    default 4
+    help
+        Log level for gmtrack module.
+
+config APP_GMTRACK_THREAD_STACK_SIZE
+    int "Gmtrack module thread stack size"
+    default 1024
+    help
+        Stack size for the Gmtrack module thread.
+
+config APP_GMTRACK_WATCHDOG_TIMEOUT_SECONDS
+    int "Gmtrack module watchdog timeout in seconds"
+    default 30
+    help
+        Watchdog timeout for the Gmtrack module.
+
+config APP_GMTRACK_MSG_PROCESSING_TIMEOUT_SECONDS
+    int "Gmtrack module message processing timeout in seconds"
+    default 5
+    help
+        Maximum time allowed for processing a single message in the Gmtrack module.
+
+module = APP_GMTRACK
+module-str = GMTRACK
+source "subsys/logging/Kconfig.template.log_config"
+
+endif # APP_GMTRACK

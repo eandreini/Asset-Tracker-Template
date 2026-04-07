@@ -26,6 +26,9 @@
 #include "storage.h"
 #include "cbor_helper.h"
 
+#include "common/gpsparams.h"
+#include "modules/gmtrack/gmtrack.h"
+
 #if defined(CONFIG_APP_LED)
 #include "led.h"
 #endif /* CONFIG_APP_LED */
@@ -43,6 +46,10 @@ LOG_MODULE_REGISTER(main, 4);
 
 /* Register subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
+
+extern gpsparams_t g_gpsparams;
+extern gpsparams_chgd_t g_gpsparams_chgd;
+
 
 enum timer_msg_type {
 	/* Timer for sampling data has expired.
@@ -789,7 +796,8 @@ static void update_shadow_reported_section(const struct config_params *config,
 	}
 	if (config->storage_threshold_valid) {
 		LOG_DBG("Reported storage_threshold: %d", config->storage_threshold);
-	}
+	}	
+
 }
 
 static void config_apply(struct main_state *state_object, const struct config_params *config)
@@ -799,7 +807,11 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 
 	if (!config->sample_interval &&
 	    !config->update_interval &&
-	    !config->storage_threshold_valid) {
+	    !config->storage_threshold_valid
+		/* GM BEGIN added check of GpsParams changed */
+		&& !GpsParamsIsChanged(&config->gpsparams_chgd
+		/* GM END */	
+		)) {
 		LOG_DBG("No configuration parameters to update");
 		return;
 	}
@@ -836,6 +848,25 @@ static void config_apply(struct main_state *state_object, const struct config_pa
 			return;
 		}
 	}
+
+	/* GM BEGIN - update global gps params*/
+	GpsParamsSetChanged(&config->gpsparams, &config->gpsparams_chgd);
+	/* GM END */
+	/* GM BEGIN - inform gmtrack of changed parameters*/
+	if (GpsParamsIsChanged(&config->gpsparams_chgd)) {
+		// publish change to gmtrack
+		struct gmtrack_msg gmtrack_msg = {
+			.type = GMTRACK_CONFIG_CHG,
+		};
+		err = zbus_chan_pub(&GMTRACK_CHAN, &gmtrack_msg, PUB_TIMEOUT);
+		if (err) {
+			LOG_ERR("Failed to publish gmtrack cfg change, error: %d", err);
+			SEND_FATAL_ERROR();
+
+			return;
+		}
+	}
+	/* GM END */
 
 	/* Notify waiting states that configuration has changed and timers need restart */
 	if (interval_changed) {
@@ -911,6 +942,9 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 							    : 0;
 		reported_config.storage_threshold_valid = update_config.storage_threshold_valid;
 
+		GpsParamsGetChanged(&reported_config.gpsparams, &reported_config.gpsparams_chgd);
+		GpsParamsClearChanged();
+
 		update_shadow_reported_section(&reported_config, command_type, command_id,
 					       CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 
@@ -941,6 +975,9 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 		reported_config.storage_threshold = state_object->storage_threshold;
 		reported_config.storage_threshold_valid = true;
 
+		GpsParamsGetAll(&reported_config.gpsparams, &reported_config.gpsparams_chgd);
+		GpsParamsClearChanged();
+
 		update_shadow_reported_section(&reported_config, 0, 0,
 					       CLOUD_SHADOW_SET_REPORTED_CONFIG);
 
@@ -958,6 +995,9 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 		reported_config.update_interval = state_object->update_interval_sec;
 		reported_config.storage_threshold = state_object->storage_threshold;
 		reported_config.storage_threshold_valid = true;
+
+		GpsParamsGetAll(&reported_config.gpsparams, &reported_config.gpsparams_chgd);
+		GpsParamsClearChanged();
 
 		update_shadow_reported_section(&reported_config, 0, 0,
 					       CLOUD_SHADOW_SET_REPORTED_CONFIG);

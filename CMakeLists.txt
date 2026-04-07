@@ -5,3 +5,4 @@
 # as the module CMake entry point (see zephyr/module.yml).
 
 add_subdirectory_ifdef(CONFIG_APP_CLOUD_MQTT examples/modules/cloud/)
+set(PM_STATIC_YML_FILE ${CMAKE_CURRENT_SOURCE_DIR}/pm_static.yml)

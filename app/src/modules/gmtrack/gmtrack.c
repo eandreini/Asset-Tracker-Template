@@ -477,8 +477,8 @@ static void add_msg(const struct gmtrack_poll_msg * msg)
 static int parse_hex_u64(const char * strval, uint64_t * val)
 {
     errno = 0;
-    const char * end;
-    *val = strtoull(val, &end, 16);
+    char * end;
+    *val = strtoull(strval, &end, 16);
     return errno == 0 ? 0 : -1;
 }
 
@@ -538,7 +538,7 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
     else if (strcmp (argv[1], "setsled") == 0 && argc == 3) {
         LOG_DBG("Received sled update %s",argv[2]);
         if (parse_hex_u64(argv[2], &g_gmtrack_info.sled) != 0) {
-            LOG_ERR("Sled value not u64 hex string\r\n", argv[2]);
+            LOG_ERR("Sled value not u64 hex string %s\r\n", argv[2]);
             printf("\x02""ERR Bad len\x03\r\n");
         }
         else {
@@ -558,7 +558,7 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
     else if (strcmp (argv[1], "setmac") == 0 && argc == 3) {
         LOG_DBG("Received mac update %s",argv[2]);
         if (parse_hex_u64(argv[2], &g_gmtrack_info.mac) != 0) {
-            LOG_ERR("Mac value not u64 hex string\r\n", argv[2]);
+            LOG_ERR("Mac value not u64 hex string %s\r\n", argv[2]);
             printf("\x02""ERR Bad len\x03\r\n");
         }
         else {

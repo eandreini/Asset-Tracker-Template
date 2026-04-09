@@ -13,10 +13,18 @@
 #include <zephyr/pm/device.h>
 #include "gpsparams.h"
 #include <date_time.h>
+#include "network.h"
+
 
 gmtrack_info_t g_gmtrack_info;
 
 #define DISABLE_UART1_AT_POWERUP 0
+
+
+/* functions added in main to trigger timer messages */
+void main_send_timer_expired_cloud_message();
+void main_send_timer_expired_sample_data_message();
+
 
 void start_timer_fun(struct k_timer *timer_id);
 void poll_test_fun(struct k_timer *timer_id);
@@ -136,6 +144,20 @@ static enum smf_state_result state_running_run(void *o)
     return SMF_EVENT_PROPAGATE;
 }
 
+
+int send_network_message(enum network_msg_type type)
+{
+  	const struct network_msg msg = {
+		.type = type,
+	};
+
+	int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+	if (err) {
+		LOG_ERR("zbus_chan_pub, error: %d", err);
+		return 1;
+	}
+    return 0;
+}
 
 
 static int uart_disable(void)
@@ -675,7 +697,6 @@ static int cmd_u1ena(const struct shell *sh, size_t argc, char **argv)
     return 1;
 }
 
-
 static int cmd_datetime(const struct shell *sh, size_t argc, char **argv)
 {
     int64_t now;
@@ -683,6 +704,53 @@ static int cmd_datetime(const struct shell *sh, size_t argc, char **argv)
     printf ("Current unixtime rv: %d %lld\n", rv, now);
     return 1;
 }
+
+static int cmd_send_data(const struct shell *sh, size_t argc, char **argv)
+{
+    (void)sh;
+    (void)argc;
+    (void)argv;
+
+    main_send_timer_expired_cloud_message();
+    return 1;
+
+}
+static int cmd_sample_data(const struct shell *sh, size_t argc, char **argv)
+{
+    (void)sh;
+    (void)argc;
+    (void)argv;
+
+    main_send_timer_expired_sample_data_message();
+    return 1;
+
+}
+
+static int cmd_network_msg(const struct shell *sh, size_t argc, char **argv)
+{
+    (void)sh;
+    if (argc != 2) {
+        printf("Usage: network_msg <msg_type>\n");
+        printf("msg_type: conn for connect, disc for disconnect\n");
+        return 0;
+    }
+    enum network_msg_type type;
+    if (strcmp(argv[1], "con") == 0) {
+        type = NETWORK_CONNECT;
+    }
+    else if (strcmp(argv[1], "disc") == 0) {
+        type = NETWORK_DISCONNECT;
+    }
+    else {
+        printf("Invalid msg_type. Use 'conn' or 'disc'.\n");
+        return 0;
+    }
+    send_network_message(type);
+    return 1;
+}
+
+
+
 
 /* Define module thread */
 K_THREAD_DEFINE(gmtrack_task_id,
@@ -698,3 +766,8 @@ SHELL_CMD_REGISTER(cfgdump, NULL, "Dump config", cmd_cfgdump);
 SHELL_CMD_REGISTER(cfgchg, NULL, "Send changed config to SILAB", cmd_cfgchg);
 SHELL_CMD_REGISTER(u1ena, NULL, "Enable UART1 (LOG) interface", cmd_u1ena);
 SHELL_CMD_REGISTER(datetime, NULL, "Get date and time", cmd_datetime);
+
+SHELL_CMD_REGISTER(send_data, NULL, "Send data to cloud", cmd_send_data);
+SHELL_CMD_REGISTER(sample_data, NULL, "Sample data", cmd_sample_data);
+SHELL_CMD_REGISTER(nw_msg, NULL, "Send network message", cmd_network_msg);
+

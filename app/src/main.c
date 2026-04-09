@@ -680,6 +680,12 @@ static void cloud_send_now(struct main_state *state_object)
 /* Delayable work used to send messages on the timer_chan */
 static void timer_send_data_work_fn(struct k_work *work)
 {
+
+	/* GM BEGIN - removed original function */
+	ARG_UNUSED(work);
+	LOG_DBG("Timer send data expired, but timer_send_data_work_fn is not used anymore to trigger cloud sync. Ignoring.");
+
+	/*
 	int err;
 	const struct timer_msg msg = { .type = TIMER_EXPIRED_CLOUD };
 
@@ -691,11 +697,17 @@ static void timer_send_data_work_fn(struct k_work *work)
 		SEND_FATAL_ERROR();
 
 		return;
-	}
+	}*/
+	/* GM END */
 }
 
 static void timer_sample_data_work_fn(struct k_work *work)
 {
+	/* GM BEGIN - removed original function */
+	ARG_UNUSED(work);
+	LOG_DBG("Timer sample data expired, but timer_sample_data_work_fn is not used anymore to trigger sample. Ignoring.");
+
+	/*
 	int err;
 	const struct timer_msg msg = { .type = TIMER_EXPIRED_SAMPLE_DATA };
 
@@ -707,7 +719,8 @@ static void timer_sample_data_work_fn(struct k_work *work)
 		SEND_FATAL_ERROR();
 
 		return;
-	}
+	}*/
+	/* GM END */
 }
 
 static void timer_sample_start(uint32_t delay_sec)
@@ -1877,3 +1890,32 @@ int main(void)
 		}
 	}
 }
+/* GM BEGIN - added functions to send timer messages */
+void main_send_timer_expired_cloud_message()
+{
+	int err;
+	const struct timer_msg msg = { .type = TIMER_EXPIRED_CLOUD };
+
+	err = zbus_chan_pub(&timer_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish cloud timer expired message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+void main_send_timer_expired_sample_data_message()
+{
+	int err;
+	const struct timer_msg msg = { .type = TIMER_EXPIRED_SAMPLE_DATA };
+
+	err = zbus_chan_pub(&timer_chan, &msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish sample data timer expired message, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+    
+}
+/* GM END*/

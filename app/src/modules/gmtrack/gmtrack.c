@@ -14,36 +14,38 @@
 #include "gpsparams.h"
 #include <date_time.h>
 #include "network.h"
+#include "button.h"
 
+#include <zephyr/pm/device.h>
+#include <zephyr/pm/device_runtime.h>
 
 gmtrack_info_t g_gmtrack_info;
 
 #define DISABLE_UART1_AT_POWERUP 0
 
-
 /* functions added in main to trigger timer messages */
 void main_send_timer_expired_cloud_message();
 void main_send_timer_expired_sample_data_message();
 
-
 void start_timer_fun(struct k_timer *timer_id);
 void poll_test_fun(struct k_timer *timer_id);
+void uart_on_fun(struct k_timer *timer_id);
 static void signal_ready();
 
 K_TIMER_DEFINE(g_start_timer, start_timer_fun, NULL);
 K_MSGQ_DEFINE(g_poll_msgq, sizeof(struct gmtrack_poll_msg), 32, 4);
 K_TIMER_DEFINE(g_test_timer, poll_test_fun, NULL);
 
-const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
-const struct gpio_dt_spec gp14 = GPIO_DT_SPEC_GET(DT_ALIAS(led1), gpios);
-const struct gpio_dt_spec gp15 = GPIO_DT_SPEC_GET(DT_ALIAS(led2), gpios);
-const struct gpio_dt_spec gp2 = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
-const struct gpio_dt_spec gp3 = GPIO_DT_SPEC_GET(DT_ALIAS(led3), gpios);
+K_TIMER_DEFINE(g_uarton_timer, uart_on_fun, NULL);
 
+const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+const struct gpio_dt_spec gp2 = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
+const struct device *gpio_dev = DEVICE_DT_GET(DT_NODELABEL(gpio0));
 
 static struct gpio_callback gp14_event_cb;
 static const struct device *const uart0_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1));
+
 
 static void flush_cfgchg();
 
@@ -56,9 +58,7 @@ ZBUS_CHAN_DEFINE(GMTRACK_CHAN,
                  NULL,
                  NULL,
                  ZBUS_OBSERVERS_EMPTY,
-                 ZBUS_MSG_INIT(0)
-);
-
+                 ZBUS_MSG_INIT(0));
 
 /* Register zbus subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(gmtrack);
@@ -69,16 +69,18 @@ ZBUS_CHAN_ADD_OBS(GMTRACK_CHAN, gmtrack, 0);
 #define MAX_MSG_SIZE sizeof(struct gmtrack_msg)
 
 BUILD_ASSERT(CONFIG_APP_GMTRACK_WATCHDOG_TIMEOUT_SECONDS >
-             CONFIG_APP_GMTRACK_MSG_PROCESSING_TIMEOUT_SECONDS,
+                 CONFIG_APP_GMTRACK_MSG_PROCESSING_TIMEOUT_SECONDS,
              "Watchdog timeout must be greater than maximum message processing time");
 
 /* State machine states */
-enum trdy_module_state {
+enum trdy_module_state
+{
     STATE_RUNNING,
 };
 
 /* Module state structure */
-struct gmtrack_state {
+struct gmtrack_state
+{
     /* State machine context (must be first) */
     struct smf_ctx ctx;
 
@@ -109,33 +111,35 @@ static void task_wdt_callback(int channel_id, void *user_data)
     SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
 
-
 /* State machine handlers */
 static enum smf_state_result state_running_run(void *o)
 {
     struct gmtrack_state *state_object = (struct gmtrack_state *)o;
 
-    if (&GMTRACK_CHAN == state_object->chan) {
+    if (&GMTRACK_CHAN == state_object->chan)
+    {
         struct gmtrack_msg msg = MSG_TO_GMTRACK_TYPE(state_object->msg_buf);
 
-        if (msg.type == GMTRACK_REQUEST) {
+        if (msg.type == GMTRACK_REQUEST)
+        {
             LOG_INF("Received gmtrack request");
 
             state_object->current_value++;
 
             struct gmtrack_msg response = {
                 .type = GMTRACK_RESPONSE,
-                .value = state_object->current_value
-            };
+                .value = state_object->current_value};
 
             int err = zbus_chan_pub(&GMTRACK_CHAN, &response, K_NO_WAIT);
-            if (err) {
+            if (err)
+            {
                 LOG_ERR("Failed to publish response: %d", err);
                 SEND_FATAL_ERROR();
                 return SMF_EVENT_PROPAGATE;
             }
         }
-        else if (msg.type == GMTRACK_CONFIG_CHG) {
+        else if (msg.type == GMTRACK_CONFIG_CHG)
+        {
             LOG_DBG("Reporting cfg changed to Silabs");
             flush_cfgchg();
         }
@@ -144,96 +148,122 @@ static enum smf_state_result state_running_run(void *o)
     return SMF_EVENT_PROPAGATE;
 }
 
-
 int send_network_message(enum network_msg_type type)
 {
-  	const struct network_msg msg = {
-		.type = type,
-	};
+    const struct network_msg msg = {
+        .type = type,
+    };
 
-	int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
-	if (err) {
-		LOG_ERR("zbus_chan_pub, error: %d", err);
-		return 1;
-	}
+    int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+    if (err)
+    {
+        LOG_ERR("zbus_chan_pub, error: %d", err);
+        return 1;
+    }
+    return 0;
+}
+int send_button_message()
+{
+    struct button_msg msg;
+
+    msg.button_number = 1;
+    msg.type = BUTTON_PRESS_SHORT;
+
+    int err = zbus_chan_pub(&button_chan, &msg, PUB_TIMEOUT);
+    if (err)
+    {
+        LOG_ERR("zbus_chan_pub short press, error: %d", err);
+        SEND_FATAL_ERROR();
+    }
     return 0;
 }
 
-
-static int uart_disable(void)
+static int uart_disable(int uart)
 {
-	int err;
+    int err;
+    const struct device *dev = uart == 0 ? uart0_dev : uart1_dev;
 
-	if (!device_is_ready(uart0_dev) || !device_is_ready(uart1_dev)) {
-		LOG_ERR("UART devices are not ready");
-		return -ENODEV;
-	}
-	//LOG_DBG("suspending UART devices");
+    if (!device_is_ready(dev))
+    {
+        LOG_ERR("UART device is not ready");
+        return -ENODEV;
+    }
 
-	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_SUSPEND);
-	if (err && (err != -EALREADY)) {
-		LOG_ERR("pm_device_action_run, error: %d", err);
-		return err;
-	}
-
+    err = pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
+    if (err && (err != -EALREADY))
+    {
+        LOG_ERR("pm_device_action_run, error: %d", err);
+        return err;
+    }
     return 0;
 }
 
-static int uart_enable(void)
+static int uart_enable(int uart)
 {
-	int err;
+    int err;
+    const struct device *dev = uart == 0 ? uart0_dev : uart1_dev;
 
-	if (!device_is_ready(uart0_dev) || !device_is_ready(uart1_dev)) {
-		LOG_ERR("UART devices are not ready");
-		return -ENODEV;
-	}
+    if (!device_is_ready(dev))
+    {
+        LOG_ERR("UART device is not ready");
+        return -ENODEV;
+    }
 
-
-	err = pm_device_action_run(uart0_dev, PM_DEVICE_ACTION_RESUME);
-	if (err && (err != -EALREADY)) {
-		LOG_ERR("pm_device_action_run, error: %d", err);
-		return err;
-	}
-
-	//LOG_DBG("UART devices enabled");
-	return 0;
+    err = pm_device_action_run(dev, PM_DEVICE_ACTION_RESUME);
+    if (err && (err != -EALREADY))
+    {
+        LOG_ERR("pm_device_action_run, error: %d", err);
+        return err;
+    }
+    return 0;
 }
 
+void uart_on_fun(struct k_timer *timer_id)
+{
+    uart_enable(0);
+    uart_enable(1);
+    printf("UART0 and UART1 enabled\r\n");
+}
 
 static void led_set(int value)
 {
-	gpio_pin_set_dt(&led, value); 
+    gpio_pin_set_dt(&led, value);
 }
 
 static void gp14_change_fun(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
-    if (gpio_pin_get_dt(&gp14)) {
+    if (gpio_pin_get(gpio_dev, 14))
+    {
         led_set(1);
-        uart_enable();
-        //LOG_DBG("GP14 pin rised");
-        // confirm driving hi GP15
-        gpio_pin_set_dt(&gp15, 1);
+        uart_enable(0);
+        LOG_DBG("GP14 pin rised");
+        //  confirm driving hi GP15
+        gpio_pin_set(gpio_dev, 15, 1);
+        // activate interrupt on GP14 pin to detect falling edge
+        gpio_pin_interrupt_configure(gpio_dev, 14, GPIO_INT_LEVEL_INACTIVE);
+
     }
-    else {
-        gpio_pin_set_dt(&gp15, 0);
+    else
+    {
+        gpio_pin_set(gpio_dev, 15, 0);
         led_set(0);
-        //LOG_DBG("GP14 pin falled");
-        uart_disable();
+        LOG_DBG("GP14 pin falled");
+        uart_disable(0);
+
+        // activate interrupt on GP14 pin to detect rising edge
+        gpio_pin_interrupt_configure(gpio_dev, 14, GPIO_INT_LEVEL_ACTIVE);
     }
 }
 
 void start_timer_fun(struct k_timer *timer_id)
 {
     led_set(0);
-    uart_disable();
 
+    uart_disable(0);
 
 #if DISABLE_UART1_AT_POWERUP
     LOG_DBG("Disabling uart1");
-    int err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_SUSPEND);
-    if (err && (err != -EALREADY)) {
-        LOG_ERR("pm_device_action_run, error: %d", err);
-    }
+    uart_disable(1);
 #endif
     signal_ready();
 }
@@ -242,42 +272,44 @@ static void gmtrack_init()
 {
     LOG_DBG("Gmtrack module initialization");
 
-    int err = gpio_pin_configure_dt(&gp3, GPIO_OUTPUT_LOW);
-    if(err){
-        LOG_ERR("gp3 pin configure failed (%d)\n",err);
+    int err = gpio_pin_configure(gpio_dev, 3, GPIO_OUTPUT_LOW);
+    if (err)
+    {
+        LOG_ERR("gp3 pin configure failed (%d)\n", err);
         return;
     }
 
-    err = gpio_pin_configure_dt(&gp15, GPIO_OUTPUT_LOW);
-    if(err){
-        LOG_ERR("gp15 pin configure failed (%d)\n",err);
+    err = gpio_pin_configure(gpio_dev, 15, GPIO_OUTPUT_LOW);
+    if (err)
+    {
+        LOG_ERR("gp15 pin configure failed (%d)\n", err);
         return;
     }
-    err = gpio_pin_configure_dt(&gp14, GPIO_ACTIVE_HIGH | GPIO_INPUT);
-    if(err){
-        LOG_ERR("gp14 pin configure failed (%d)\n",err);
+    err = gpio_pin_configure(gpio_dev, 14, GPIO_ACTIVE_HIGH | GPIO_INPUT);
+    if (err)
+    {
+        LOG_ERR("gp14 pin configure failed (%d)\n", err);
         return;
     }
-    err = gpio_pin_interrupt_configure_dt(&gp14, GPIO_INT_EDGE_RISING | GPIO_INT_EDGE_FALLING);
-    if(err){
-        LOG_ERR("gp14 int configure failed (%d)\n",err);
+    err = gpio_pin_interrupt_configure(gpio_dev, 14, /*GPIO_INT_EDGE_RISING | GPIO_INT_EDGE_FALLING*/ GPIO_INT_LEVEL_ACTIVE);
+    if (err)
+    {
+        LOG_ERR("gp14 int configure failed (%d)\n", err);
         return;
     }
-    gpio_init_callback(&gp14_event_cb, gp14_change_fun, BIT(gp14.pin));
+    gpio_init_callback(&gp14_event_cb, gp14_change_fun, BIT(14));
 
-    err = gpio_add_callback(gp14.port, &gp14_event_cb);
+    err = gpio_add_callback(gpio_dev, &gp14_event_cb);
     if(err){
         LOG_ERR("gp14 add callback failed (%d)\n",err);
         return;
     }
-
     GpsParamsTestFill();
 
     k_timer_start(&g_start_timer, K_MSEC(2000), K_NO_WAIT);
 
     led_set(1);
 }
-
 
 /* Module task function */
 static void gmtrack_task(void)
@@ -290,8 +322,7 @@ static void gmtrack_task(void)
         (CONFIG_APP_GMTRACK_MSG_PROCESSING_TIMEOUT_SECONDS * MSEC_PER_SEC);
     const k_timeout_t zbus_wait_ms = K_MSEC(wdt_timeout_ms - execution_time_ms);
     struct gmtrack_state gmtrack_state = {
-        .current_value = 0
-    };
+        .current_value = 0};
 
     LOG_DBG("Starting gmtrack module task");
 
@@ -299,29 +330,35 @@ static void gmtrack_task(void)
 
     smf_set_initial(SMF_CTX(&gmtrack_state), &states[STATE_RUNNING]);
     gmtrack_init();
-    
-    while (true) {
+
+    while (true)
+    {
         err = task_wdt_feed(task_wdt_id);
-        if (err) {
+        if (err)
+        {
             LOG_ERR("Failed to feed watchdog: %d", err);
             SEND_FATAL_ERROR();
             return;
         }
 
         err = zbus_sub_wait_msg(&gmtrack,
-                               &gmtrack_state.chan,
-                               gmtrack_state.msg_buf,
-                               zbus_wait_ms);
-        if (err == -ENOMSG) {
+                                &gmtrack_state.chan,
+                                gmtrack_state.msg_buf,
+                                zbus_wait_ms);
+        if (err == -ENOMSG)
+        {
             continue;
-        } else if (err) {
+        }
+        else if (err)
+        {
             LOG_ERR("Failed to wait for message: %d", err);
             SEND_FATAL_ERROR();
             return;
         }
 
         err = smf_run_state(SMF_CTX(&gmtrack_state));
-        if (err) {
+        if (err)
+        {
             LOG_ERR("Failed to run state machine: %d", err);
             SEND_FATAL_ERROR();
             return;
@@ -329,182 +366,190 @@ static void gmtrack_task(void)
     }
 }
 
-
-static const struct gpio_dt_spec * get_io(const char * param)
-{
-	int gp = atoi(param);
-	switch (gp) {
-		case 2:
-			return &gp2;
-		case 3:
-			return &gp3;
-		case 14:
-			return &gp14;
-		case 15:
-			return &gp15;
-		default:
-			return NULL;
-	}
-	return NULL;
-}
-
-
-
 static int cmd_gpio(const struct shell *sh, size_t argc, char **argv)
 {
-	if (argc == 1) {
-		printf ("gpio mode <2|3|14|15> <i|o|dis|pu|pd|od|os> (input/output/disabled/in pullup/in pulldown/open drain/open source)\n");
-		printf ("gpio set <2|3|14|15> <0|1|in>\n");
-		printf ("gpio get <2|3|14|15>\n");
-		printf ("gpio dump\n");
-		return 0;
-	}
-	const struct gpio_dt_spec * gp = NULL;
-	if (argc > 2) {
-		gp = get_io(argv[2]);
-		if (gp == NULL) {
-			printf ("Invalid GP number - use 2 3 14 or 15\n");
-			return 1;
-		}
-	}
+    if (argc == 1)
+    {
+        printf("gpio mode <2|3|14|15> <i|o|dis|pu|pd|od|os> (input/output/disabled/in pullup/in pulldown/open drain/open source)\n");
+        printf("gpio set <2|3|14|15> <0|1|in>\n");
+        printf("gpio get <2|3|14|15>\n");
+        printf("gpio dump\n");
+        return 0;
+    }
+    int gp = -1;
+    if (argc > 2)
+    {
+        gp = atoi(argv[2]);
+        if (gp < 0)
+        {
+            printf("Invalid GP number - use 2 3 14 or 15\n");
+            return 1;
+        }
+    }
 
-	if (argc==4 && strcmp(argv[1],"mode") == 0) {
-		if (strcmp(argv[3],"i") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_INPUT);
-		}
-		else if (strcmp(argv[3],"o") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_OUTPUT);
-		}
-		else if (strcmp(argv[3],"dis") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_DISCONNECTED);
-		}
-		else if (strcmp(argv[3],"pu") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_INPUT | GPIO_PULL_UP);
-		}
-		else if (strcmp(argv[3],"pd") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_INPUT | GPIO_PULL_DOWN);
-		}
-		else if (strcmp(argv[3],"od") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_OUTPUT | GPIO_OPEN_DRAIN);
-		}
-		else if (strcmp(argv[3],"os") == 0) {
-			gpio_pin_configure_dt(gp, GPIO_OUTPUT | GPIO_OPEN_SOURCE);
-		}
-		else
-			return 1;
-		return 0;
-	}
-	else if (argc == 4 && strcmp(argv[1],"set") == 0) {
-		if (argv[3][0] == 'i') {
-			gpio_pin_configure_dt(gp, GPIO_INPUT);
-		}
-		else if (argv[3][0] == '1') {
-			gpio_pin_set_dt(gp, 1);
-		}
-		else {
-			gpio_pin_set_dt(gp, 0);
-		}
-		return 0;
-	}
-	else if (argc == 3 && strcmp(argv[1],"get") == 0) {
-		printf ("val:   %d\n", gpio_pin_get_dt(gp));
-		return 0;
-	}
-	else if (argc == 2 && strcmp(argv[1],"dump") == 0) {
-		printf ("GP2:   %d\n", gpio_pin_get_dt(&gp2));
-		printf ("GP3:   %d\n", gpio_pin_get_dt(&gp3));
-		printf ("GP14:  %d\n", gpio_pin_get_dt(&gp14));
-		printf ("GP15:  %d\n", gpio_pin_get_dt(&gp15));
-		return 0;
-	}
-	return 1;
+    if (argc == 4 && strcmp(argv[1], "mode") == 0)
+    {
+        if (strcmp(argv[3], "i") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT);
+        }
+        else if (strcmp(argv[3], "o") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_OUTPUT);
+        }
+        else if (strcmp(argv[3], "dis") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_DISCONNECTED);
+        }
+        else if (strcmp(argv[3], "pu") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT | GPIO_PULL_UP);
+        }
+        else if (strcmp(argv[3], "pd") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT | GPIO_PULL_DOWN);
+        }
+        else if (strcmp(argv[3], "od") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_OUTPUT | GPIO_OPEN_DRAIN);
+        }
+        else if (strcmp(argv[3], "os") == 0)
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_OUTPUT | GPIO_OPEN_SOURCE);
+        }
+        else
+            return 1;
+        return 0;
+    }
+    else if (argc == 4 && strcmp(argv[1], "set") == 0)
+    {
+        if (argv[3][0] == 'i')
+        {
+            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT);
+        }
+        else if (argv[3][0] == '1')
+        {
+            gpio_pin_set(gpio_dev, gp, 1);
+        }
+        else
+        {
+            gpio_pin_set(gpio_dev, gp, 0);
+        }
+        return 0;
+    }
+    else if (argc == 3 && strcmp(argv[1], "get") == 0)
+    {
+        printf("val:   %d\n", gpio_pin_get(gpio_dev, gp));
+        return 0;
+    }
+    else if (argc == 2 && strcmp(argv[1], "dump") == 0)
+    {
+        printf("GP2:   %d\n", gpio_pin_get(gpio_dev, 2));
+        printf("GP3:   %d\n", gpio_pin_get(gpio_dev, 3));
+        printf("GP14:  %d\n", gpio_pin_get(gpio_dev, 14));
+        printf("GP15:  %d\n", gpio_pin_get(gpio_dev, 15));
+        return 0;
+    }
+    return 1;
 }
-
 
 static int cmd_led(const struct shell *sh, size_t argc, char **argv)
 {
-	if (argc == 2) {
-		if (strcmp(argv[1],"on") == 0)
-			gpio_pin_set_dt(&led, 1); 
-		else if (strcmp(argv[1],"off") == 0)
-			gpio_pin_set_dt(&led, 0); 
+    if (argc == 2)
+    {
+        if (strcmp(argv[1], "on") == 0)
+            gpio_pin_set_dt(&led, 1);
+        else if (strcmp(argv[1], "off") == 0)
+            gpio_pin_set_dt(&led, 0);
 
-		return 0;
-	}
-	return 1;
+        return 0;
+    }
+    return 1;
 }
 static int cmd_serialtest(const struct shell *sh, size_t argc, char **argv)
 {
-	int num = -1;
-	if (argc == 2) {
-		if (sscanf (argv[1], "%d", &num) != 1) {
-			return 1;
-		}
-	}
-	do {
-		gpio_pin_set_dt(&led, 1); 
-		printf ("The quick brown fox jumps over the lazy dog\r\n");
-		gpio_pin_set_dt(&led, 0); 
-		if (num > 0)
-			num--;
-	} while (num);
-	return 0;
+    int num = -1;
+    if (argc == 2)
+    {
+        if (sscanf(argv[1], "%d", &num) != 1)
+        {
+            return 1;
+        }
+    }
+    do
+    {
+        gpio_pin_set_dt(&led, 1);
+        printf("The quick brown fox jumps over the lazy dog\r\n");
+        gpio_pin_set_dt(&led, 0);
+        if (num > 0)
+            num--;
+    } while (num);
+    return 0;
 }
 
 static void release_msg_flag()
 {
-    gpio_pin_set_dt(&gp3, 0);
+    gpio_pin_set(gpio_dev, 3, 0);
 }
 static void rise_msg_flag()
 {
-    gpio_pin_set_dt(&gp3, 1);
+    gpio_pin_set(gpio_dev, 3, 1);
 }
 
 static void msg_poll()
 {
     struct gmtrack_poll_msg msg;
-    if (k_msgq_get(&g_poll_msgq, &msg, K_NO_WAIT) == 0) {
+    if (k_msgq_get(&g_poll_msgq, &msg, K_NO_WAIT) == 0)
+    {
         // msg available, send it out
-        switch (msg.type) {
-            case gmpoll_text:
-                printf ("\x02""T%s\x03\r\n", msg.data);
-                break;
-            case gmpoll_config:
-                printf ("\x02""C%s\x03\r\n", msg.data);
-                break;
-            case gmpoll_ready:
-                printf ("\x02""R\x03\r\n");
-                break;
-            default:
-                printf ("\x02""U\x03\r\n");
-                break;
+        switch (msg.type)
+        {
+        case gmpoll_text:
+            printf("\x02"
+                   "T%s\x03\r\n",
+                   msg.data);
+            break;
+        case gmpoll_config:
+            printf("\x02"
+                   "C%s\x03\r\n",
+                   msg.data);
+            break;
+        case gmpoll_ready:
+            printf("\x02"
+                   "R\x03\r\n");
+            break;
+        default:
+            printf("\x02"
+                   "U\x03\r\n");
+            break;
         }
     }
     else
-        printf ("\x02""E\x03\r\n");
+        printf("\x02"
+               "E\x03\r\n");
 
     // check if there are other data available
-    if (k_msgq_num_used_get(&g_poll_msgq) == 0)        
+    if (k_msgq_num_used_get(&g_poll_msgq) == 0)
         release_msg_flag();
     else
         rise_msg_flag();
 }
 
-static void add_msg(const struct gmtrack_poll_msg * msg)
+static void add_msg(const struct gmtrack_poll_msg *msg)
 {
     k_msgq_put(&g_poll_msgq, msg, K_NO_WAIT);
     rise_msg_flag();
 }
 
-static int parse_hex_u64(const char * strval, uint64_t * val)
+static int parse_hex_u64(const char *strval, uint64_t *val)
 {
     errno = 0;
-    char * end;
+    char *end;
     *val = strtoull(strval, &end, 16);
     return errno == 0 ? 0 : -1;
 }
 
-static void add_text_msg(const char * text)
+static void add_text_msg(const char *text)
 {
     struct gmtrack_poll_msg msg;
     int ln = strlen(text);
@@ -512,7 +557,7 @@ static void add_text_msg(const char * text)
         ln = 59;
     msg.type = gmpoll_text;
     msg.len = ln;
-    memcpy (msg.data, text, ln);
+    memcpy(msg.data, text, ln);
     msg.data[ln] = 0;
     add_msg(&msg);
 }
@@ -523,100 +568,142 @@ void poll_test_fun(struct k_timer *timer_id)
     add_text_msg("Polled message test 2");
 }
 
-static void msg_cfgpar (const char * name, const char * value)
+static void msg_cfgpar(const char *name, const char *value)
 {
     int val = atoi(value);
-    if (GpsParamsSetValue(name, val) != 0) {
-        printf ("\x02""ERR Bad param name\x03\r\n");
+    if (GpsParamsSetValue(name, val) != 0)
+    {
+        printf("\x02"
+               "ERR Bad param name\x03\r\n");
         LOG_ERR("Bad param name %s", name);
     }
-    printf ("\x02""OK\x03\r\n");
+    printf("\x02"
+           "OK\x03\r\n");
 }
 
 static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
 {
-	if (argc < 2) {
-		return 1;
+    if (argc < 2)
+    {
+        return 1;
     }
-    if (strcmp (argv[1], "hello") == 0) {
-        printf ("\x02""OK hi\x03\r\n");
+    if (strcmp(argv[1], "hello") == 0)
+    {
+        printf("\x02"
+               "OK hi\x03\r\n");
     }
-    else if (strcmp (argv[1], "poll") == 0) {
+    else if (strcmp(argv[1], "poll") == 0)
+    {
         msg_poll();
     }
-    else if (strcmp (argv[1], "testp") == 0) {
-        printf ("\x02""OK Timer started\x03\r\n");
+    else if (strcmp(argv[1], "testp") == 0)
+    {
+        printf("\x02"
+               "OK Timer started\x03\r\n");
         k_timer_start(&g_test_timer, K_MSEC(5000), K_NO_WAIT);
     }
-    else if (strcmp (argv[1], "noresp") == 0) {
+    else if (strcmp(argv[1], "noresp") == 0)
+    {
     }
-    else if (strcmp (argv[1], "cfgpar") == 0) {
-        if (argc != 4) {
-            printf ("\x02""ERR Bad params\x03\r\n");
+    else if (strcmp(argv[1], "cfgpar") == 0)
+    {
+        if (argc != 4)
+        {
+            printf("\x02"
+                   "ERR Bad params\x03\r\n");
         }
         else
             msg_cfgpar(argv[2], argv[3]);
     }
-    else if (strcmp (argv[1], "setsled") == 0 && argc == 3) {
-        LOG_DBG("Received sled update %s",argv[2]);
-        if (parse_hex_u64(argv[2], &g_gmtrack_info.sled) != 0) {
+    else if (strcmp(argv[1], "setsled") == 0 && argc == 3)
+    {
+        LOG_DBG("Received sled update %s", argv[2]);
+        if (parse_hex_u64(argv[2], &g_gmtrack_info.sled) != 0)
+        {
             LOG_ERR("Sled value not u64 hex string %s\r\n", argv[2]);
-            printf("\x02""ERR Bad len\x03\r\n");
+            printf("\x02"
+                   "ERR Bad len\x03\r\n");
         }
-        else {
+        else
+        {
             LOG_DBG("Sled: %llx", g_gmtrack_info.sled);
-            printf ("\x02""OK\x03\r\n");
+            printf("\x02"
+                   "OK\x03\r\n");
         }
     }
-    else if (strcmp (argv[1], "setbatt") == 0 && argc == 3) {
-        LOG_DBG("Received batt update %s",argv[2]);
-        if (sscanf (argv[2], "%d", &g_gmtrack_info.battlevel) != 1)
-            printf("\x02""ERR\x03\r\n");
-        else {
+    else if (strcmp(argv[1], "setbatt") == 0 && argc == 3)
+    {
+        LOG_DBG("Received batt update %s", argv[2]);
+        if (sscanf(argv[2], "%d", &g_gmtrack_info.battlevel) != 1)
+            printf("\x02"
+                   "ERR\x03\r\n");
+        else
+        {
             LOG_DBG("Sled: %d", g_gmtrack_info.battlevel);
-            printf ("\x02""OK\x03\r\n");
+            printf("\x02"
+                   "OK\x03\r\n");
         }
     }
-    else if (strcmp (argv[1], "setmac") == 0 && argc == 3) {
-        LOG_DBG("Received mac update %s",argv[2]);
-        if (parse_hex_u64(argv[2], &g_gmtrack_info.mac) != 0) {
+    else if (strcmp(argv[1], "setmac") == 0 && argc == 3)
+    {
+        LOG_DBG("Received mac update %s", argv[2]);
+        if (parse_hex_u64(argv[2], &g_gmtrack_info.mac) != 0)
+        {
             LOG_ERR("Mac value not u64 hex string %s\r\n", argv[2]);
-            printf("\x02""ERR Bad len\x03\r\n");
+            printf("\x02"
+                   "ERR Bad len\x03\r\n");
         }
-        else {
+        else
+        {
             LOG_DBG("Mac: %llx", g_gmtrack_info.mac);
-            printf ("\x02""OK\x03\r\n");
+            printf("\x02"
+                   "OK\x03\r\n");
         }
     }
-    else if (strcmp (argv[1], "setdate") == 0 && argc == 3) {
-        LOG_DBG("Received date update %s",argv[2]);
+    else if (strcmp(argv[1], "setdate") == 0 && argc == 3)
+    {
+        LOG_DBG("Received date update %s", argv[2]);
         uint32_t sec;
         uint32_t ms;
-        for (char * p = argv[2]; *p != 0; p++) {
+        for (char *p = argv[2]; *p != 0; p++)
+        {
             if (*p == '.')
                 *p = ' ';
         }
-        if (sscanf (argv[2], "%d %d", &sec, &ms) != 2)
-            printf("\x02""ERR\x03\r\n");
-        else {
+        if (sscanf(argv[2], "%d %d", &sec, &ms) != 2)
+            printf("\x02"
+                   "ERR\x03\r\n");
+        else
+        {
             LOG_DBG("Ts: %d %d", sec, ms);
         }
-        printf ("\x02""OK\x03\r\n");
+        printf("\x02"
+               "OK\x03\r\n");
     }
-    else if (strcmp (argv[1], "start") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp(argv[1], "start") == 0)
+    {
+        printf("\x02"
+               "OK\x03\r\n");
     }
-    else if (strcmp (argv[1], "fix") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp(argv[1], "fix") == 0)
+    {
+        printf("\x02"
+               "OK\x03\r\n");
     }
-    else if (strcmp (argv[1], "connect") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp(argv[1], "connect") == 0)
+    {
+        printf("\x02"
+               "OK\x03\r\n");
     }
-    else if (strcmp (argv[1], "info") == 0) {
-        printf ("\x02""OK\x03\r\n");
+    else if (strcmp(argv[1], "info") == 0)
+    {
+        printf("\x02"
+               "OK\x03\r\n");
     }
-    else {
-        printf ("\x02""ERR Bad command\x03\r\n");
+    else
+    {
+        printf("\x02"
+               "ERR Bad command\x03\r\n");
     }
     return 0;
 }
@@ -632,17 +719,17 @@ static void signal_ready()
     struct gmtrack_poll_msg pollm;
     pollm.type = gmpoll_ready;
     pollm.len = 5;
-    memcpy (pollm.data, "READY", 5);
+    memcpy(pollm.data, "READY", 5);
     pollm.data[pollm.len] = 0;
     add_msg(&pollm);
 }
 
-static void chg_queue_flush(const char * msg)
+static void chg_queue_flush(const char *msg)
 {
     struct gmtrack_poll_msg pollm;
     pollm.type = gmpoll_config;
     pollm.len = strlen(msg);
-    memcpy (pollm.data, msg, pollm.len);
+    memcpy(pollm.data, msg, pollm.len);
     pollm.data[pollm.len] = 0;
     add_msg(&pollm);
 }
@@ -653,9 +740,9 @@ static void flush_cfgchg()
     GpsParamsFlushChanged(buf, 60, chg_queue_flush);
 }
 
-static void chg_flush(const char * msg)
+static void chg_flush(const char *msg)
 {
-    printf ("CfgRow: %s\n", msg);
+    printf("CfgRow: %s\n", msg);
 }
 
 static int cmd_cfgchg(const struct shell *sh, size_t argc, char **argv)
@@ -663,7 +750,7 @@ static int cmd_cfgchg(const struct shell *sh, size_t argc, char **argv)
     char buf[60];
 
     int rv = GpsParamsFlushChanged(buf, 60, chg_flush);
-    printf ("%d parameters changed\n", rv);
+    printf("%d parameters changed\n", rv);
     flush_cfgchg();
     return 1;
 }
@@ -672,27 +759,41 @@ static int cmd_u1ena(const struct shell *sh, size_t argc, char **argv)
     if (argc != 2)
         return 0;
 
-    if (strcmp(argv[1], "on") == 0) {
-        int err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_RESUME);
-	    if (err && (err != -EALREADY)) {
-		    LOG_ERR("pm_device_action_run, error: %d", err);
-	    }
-        #ifdef CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_UART
+    if (strcmp(argv[1], "on") == 0)
+    {
+        uart_enable(1);
+#ifdef CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_UART
         err = nrf_modem_lib_trace_level_set(CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL);
-        if (err) {
+        if (err)
+        {
             LOG_ERR("nrf_modem_lib_trace_level_set, error: %d", err);
             return err;
         }
-        #endif
+#endif
 
-        printf ("Uart1 enabled\n");
+        printf("Uart1 enabled\n");
     }
-    else {
-        int err = pm_device_action_run(uart1_dev, PM_DEVICE_ACTION_SUSPEND);
-	    if (err && (err != -EALREADY)) {
-		    LOG_ERR("pm_device_action_run, error: %d", err);
-	    }
-        printf ("Uart1 disabled\n");
+    else
+    {
+        uart_disable(1);
+        printf("Uart1 disabled\n");
+    }
+    return 1;
+}
+static int cmd_u0ena(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc != 2)
+        return 0;
+
+    if (strcmp(argv[1], "on") == 0)
+    {
+        uart_enable(0);
+        printf("Uart0 enabled\n");
+    }
+    else
+    {
+        uart_disable(0);
+        printf("Uart0 disabled\n");
     }
     return 1;
 }
@@ -701,7 +802,7 @@ static int cmd_datetime(const struct shell *sh, size_t argc, char **argv)
 {
     int64_t now;
     int rv = date_time_now(&now);
-    printf ("Current unixtime rv: %d %lld\n", rv, now);
+    printf("Current unixtime rv: %d %lld\n", rv, now);
     return 1;
 }
 
@@ -713,7 +814,6 @@ static int cmd_send_data(const struct shell *sh, size_t argc, char **argv)
 
     main_send_timer_expired_cloud_message();
     return 1;
-
 }
 static int cmd_sample_data(const struct shell *sh, size_t argc, char **argv)
 {
@@ -721,27 +821,32 @@ static int cmd_sample_data(const struct shell *sh, size_t argc, char **argv)
     (void)argc;
     (void)argv;
 
-    main_send_timer_expired_sample_data_message();
-    return 1;
+    // main_send_timer_expired_sample_data_message();
+    send_button_message();
 
+    return 1;
 }
 
 static int cmd_network_msg(const struct shell *sh, size_t argc, char **argv)
 {
     (void)sh;
-    if (argc != 2) {
+    if (argc != 2)
+    {
         printf("Usage: network_msg <msg_type>\n");
         printf("msg_type: conn for connect, disc for disconnect\n");
         return 0;
     }
     enum network_msg_type type;
-    if (strcmp(argv[1], "con") == 0) {
+    if (strcmp(argv[1], "con") == 0)
+    {
         type = NETWORK_CONNECT;
     }
-    else if (strcmp(argv[1], "disc") == 0) {
+    else if (strcmp(argv[1], "disc") == 0)
+    {
         type = NETWORK_DISCONNECT;
     }
-    else {
+    else
+    {
         printf("Invalid msg_type. Use 'conn' or 'disc'.\n");
         return 0;
     }
@@ -749,8 +854,91 @@ static int cmd_network_msg(const struct shell *sh, size_t argc, char **argv)
     return 1;
 }
 
+static int disable_device(const char *name)
+{
+    const struct device *dev;
+    int ret;
 
+    dev = shell_device_get_binding(name);
+    if (dev == NULL)
+    {
+        printf("Invalid device: %s", name);
+        return -ENODEV;
+    }
 
+    if (pm_device_runtime_is_enabled(dev))
+    {
+        printf("Device %s uses runtime PM, use the runtime functions instead",
+               dev->name);
+        return -EINVAL;
+    }
+
+    ret = pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
+    if (ret < 0)
+    {
+        printf("Device %s error: %d", "suspend", ret);
+        return ret;
+    }
+    return 0;
+}
+
+static int cmd_udis(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc != 2)
+    {
+        printf("Usage: udis <seconds>\n");
+        return 0;
+    }
+    int seconds = atoi(argv[1]);
+    if (seconds <= 0)
+    {
+        printf("Invalid seconds value. Must be a positive integer.\n");
+        return 0;
+    }
+    uart_disable(0);
+    uart_disable(1);
+
+    printf("UART0 and UART1 disabled for %d seconds\n", seconds);
+    k_timer_start(&g_uarton_timer, K_SECONDS(seconds), K_NO_WAIT);
+    return 1;
+}
+
+static int cmd_suspdev(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc == 1)
+    {
+        disable_device("gd25wb256e3ir@1");
+        disable_device("spi@b000");
+        disable_device("gpio@842500");
+    }
+    else if (argc == 2)
+    {
+        if (strcmp(argv[1], "flash") == 0)
+        {
+            disable_device("gd25wb256e3ir@1");
+        }
+        else if (strcmp(argv[1], "spi") == 0)
+        {
+            disable_device("spi@b000");
+        }
+        else if (strcmp(argv[1], "gpio") == 0)
+        {
+            disable_device("gpio@842500");
+        }
+        else
+        {
+            disable_device(argv[1]);
+        }
+    }
+    else
+    {
+        printf("Usage: suspdev [device_name] | flash | spi | gpio\n");
+        return 0;
+    }
+    return 1;
+}
+
+//    k_timer_start(&g_start_timer, K_MSEC(2000), K_NO_WAIT);
 
 /* Define module thread */
 K_THREAD_DEFINE(gmtrack_task_id,
@@ -764,10 +952,12 @@ SHELL_CMD_REGISTER(serialtest, NULL, "Dump on serial <arg> sentences, infinite i
 SHELL_CMD_REGISTER(silmsg, NULL, "Silabs msg", cmd_silmsg);
 SHELL_CMD_REGISTER(cfgdump, NULL, "Dump config", cmd_cfgdump);
 SHELL_CMD_REGISTER(cfgchg, NULL, "Send changed config to SILAB", cmd_cfgchg);
+SHELL_CMD_REGISTER(u0ena, NULL, "Enable UART0 (CMD) interface", cmd_u0ena);
 SHELL_CMD_REGISTER(u1ena, NULL, "Enable UART1 (LOG) interface", cmd_u1ena);
 SHELL_CMD_REGISTER(datetime, NULL, "Get date and time", cmd_datetime);
+SHELL_CMD_REGISTER(udis, NULL, "Disable UART0 and UART1 for <arg> seconds", cmd_udis);
+SHELL_CMD_REGISTER(suspdev, NULL, "Suspend device <device_name> | flash | spi | gpio", cmd_suspdev);
 
 SHELL_CMD_REGISTER(send_data, NULL, "Send data to cloud", cmd_send_data);
 SHELL_CMD_REGISTER(sample_data, NULL, "Sample data", cmd_sample_data);
 SHELL_CMD_REGISTER(nw_msg, NULL, "Send network message", cmd_network_msg);
-

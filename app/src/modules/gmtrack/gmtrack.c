@@ -14,10 +14,15 @@
 #include "gpsparams.h"
 #include <date_time.h>
 #include "network.h"
+#include "cloud.h"
+#include "location.h"   
+#include "fota.h"
+#include "storage.h"
 #include "button.h"
 
 #include <zephyr/pm/device.h>
 #include <zephyr/pm/device_runtime.h>
+#include <zephyr/pm/pm.h>
 
 gmtrack_info_t g_gmtrack_info;
 
@@ -31,6 +36,13 @@ void start_timer_fun(struct k_timer *timer_id);
 void poll_test_fun(struct k_timer *timer_id);
 void uart_on_fun(struct k_timer *timer_id);
 static void signal_ready();
+static int uart_disable(int uart);
+static int uart_enable(int uart);
+static void led_set(int value);
+static int flash_enable(bool enable);
+static void flush_cfgchg();
+
+
 
 K_TIMER_DEFINE(g_start_timer, start_timer_fun, NULL);
 K_MSGQ_DEFINE(g_poll_msgq, sizeof(struct gmtrack_poll_msg), 32, 4);
@@ -41,13 +53,14 @@ K_TIMER_DEFINE(g_uarton_timer, uart_on_fun, NULL);
 const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
 const struct gpio_dt_spec gp2 = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
 const struct device *gpio_dev = DEVICE_DT_GET(DT_NODELABEL(gpio0));
+const struct device *flash_dev = DEVICE_DT_GET(DT_NODELABEL(gd25wb256));
+
 
 static struct gpio_callback gp14_event_cb;
 static const struct device *const uart0_dev = DEVICE_DT_GET(DT_NODELABEL(uart0));
 static const struct device *const uart1_dev = DEVICE_DT_GET(DT_NODELABEL(uart1));
 
 
-static void flush_cfgchg();
 
 /* Register log module */
 LOG_MODULE_REGISTER(gmtrack_module, CONFIG_APP_GMTRACK_LOG_LEVEL);
@@ -63,8 +76,16 @@ ZBUS_CHAN_DEFINE(GMTRACK_CHAN,
 /* Register zbus subscriber */
 ZBUS_MSG_SUBSCRIBER_DEFINE(gmtrack);
 
+
 /* Add subscriber to channel */
 ZBUS_CHAN_ADD_OBS(GMTRACK_CHAN, gmtrack, 0);
+
+ZBUS_CHAN_ADD_OBS(network_chan, gmtrack, 0);
+ZBUS_CHAN_ADD_OBS(cloud_chan, gmtrack, 0);
+ZBUS_CHAN_ADD_OBS(location_chan, gmtrack, 0);
+ZBUS_CHAN_ADD_OBS(fota_chan, gmtrack, 0);
+ZBUS_CHAN_ADD_OBS(storage_chan, gmtrack, 0);
+
 
 #define MAX_MSG_SIZE sizeof(struct gmtrack_msg)
 
@@ -102,6 +123,21 @@ static const struct smf_state states[] = {
     [STATE_RUNNING] = SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
 
+static void send_gmtrack_message(enum gmtrack_msg_type type, int32_t value)
+{
+    const struct gmtrack_msg msg = {
+        .type = type,
+        .value = value
+    };
+
+    int err = zbus_chan_pub(&GMTRACK_CHAN, &msg, K_NO_WAIT);
+    if (err) {
+        LOG_ERR("zbus_chan_pub, error: %d", err);
+    }
+
+}
+
+
 /* Watchdog callback */
 static void task_wdt_callback(int channel_id, void *user_data)
 {
@@ -118,9 +154,9 @@ static enum smf_state_result state_running_run(void *o)
 
     if (&GMTRACK_CHAN == state_object->chan)
     {
-        struct gmtrack_msg msg = MSG_TO_GMTRACK_TYPE(state_object->msg_buf);
+        const struct gmtrack_msg *msg = (const struct gmtrack_msg *)state_object->msg_buf;
 
-        if (msg.type == GMTRACK_REQUEST)
+        if (msg->type == GMTRACK_REQUEST)
         {
             LOG_INF("Received gmtrack request");
 
@@ -138,15 +174,109 @@ static enum smf_state_result state_running_run(void *o)
                 return SMF_EVENT_PROPAGATE;
             }
         }
-        else if (msg.type == GMTRACK_CONFIG_CHG)
+        else if (msg->type == GMTRACK_CONFIG_CHG)
         {
             LOG_DBG("Reporting cfg changed to Silabs");
             flush_cfgchg();
         }
+        else if (msg->type == GMTRACK_SUSPEND_FLASH)
+        {
+            flash_enable(false);
+        }
+        else if (msg->type == GMTRACK_RESUME_FLASH)
+        {
+            flash_enable(true);
+        }
     }
+    else if (&network_chan == state_object->chan)
+    {
+        const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
+
+        if (msg->type == NETWORK_CONNECTED)
+        {
+            LOG_WRN("Network connected message received in gmtrack module");
+        }
+        else if (msg->type == NETWORK_DISCONNECTED)
+        {
+            LOG_WRN("Network disconnected message received in gmtrack module");
+        }
+        else if (msg->type == NETWORK_LIGHT_SEARCH_DONE)
+        {
+            LOG_WRN("Network light search done message received in gmtrack module");
+        }
+        else if (msg->type == NETWORK_SEARCH_DONE)
+        {
+            LOG_WRN("Network search done message received in gmtrack module");
+        }
+        else
+        {
+            LOG_DBG("Unhandled network message received in gmtrack module: %d", msg->type);
+        }
+    }
+    else if (&cloud_chan == state_object->chan)
+    {
+        const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
+        if (msg->type == CLOUD_CONNECTED)
+        {
+            LOG_WRN("Cloud connected message received in gmtrack module");
+        }
+        else if (msg->type == CLOUD_DISCONNECTED)
+        {
+            LOG_WRN("Cloud disconnected message received in gmtrack module");
+        }
+        else
+        {
+            LOG_DBG("Cloud message received in gmtrack module: %d", msg->type);
+        }
+    }
+    else if (&location_chan == state_object->chan)
+    {
+        const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
+
+        if (msg->type == LOCATION_SEARCH_DONE)
+        {
+            LOG_WRN("Location search done message received in gmtrack module");
+        }
+        else if (msg->type == LOCATION_GNSS_SEARCH_TRIGGER)
+        {
+            LOG_WRN("GNSS location search trigger message received in gmtrack module");
+        }
+        else
+        {
+            LOG_DBG("Location message received in gmtrack module: %d", msg->type);
+        }
+    }
+    else if (&fota_chan == state_object->chan)
+    {
+        const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
+
+        LOG_WRN("FOTA message received in gmtrack module: %d", msg->type);
+    }
+    else if (&storage_chan == state_object->chan)
+    {
+        const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+        if (msg->type == STORAGE_THRESHOLD_REACHED)
+        {
+            LOG_WRN("Storage threshold reached message received in gmtrack module");
+        }
+        else if (msg->type == STORAGE_BATCH_CLOSE)
+        {
+            LOG_WRN("Storage batch close message received in gmtrack module");
+        }
+        else
+        {
+            LOG_DBG("Storage message received in gmtrack module: %d", msg->type);
+        }
+    }
+    else
+    {
+        LOG_WRN("Message received on unknown channel in gmtrack module");
+    }
+
 
     return SMF_EVENT_PROPAGATE;
 }
+
 
 int send_network_message(enum network_msg_type type)
 {
@@ -218,6 +348,35 @@ static int uart_enable(int uart)
     return 0;
 }
 
+static int flash_enable(bool enable)
+{
+    int err;
+
+    if (!device_is_ready(flash_dev)) {
+        LOG_ERR("Flash device is not ready");
+        return -ENODEV;
+    }
+
+    if (enable) {
+        err = pm_device_action_run(flash_dev, PM_DEVICE_ACTION_RESUME);
+        if (err && (err != -EALREADY))
+        {
+            LOG_ERR("pm_device_action_run resume, error: %d", err);
+            return err;
+        }
+    }
+    else {
+        err = pm_device_action_run(flash_dev, PM_DEVICE_ACTION_SUSPEND);
+        if (err && (err != -EALREADY))
+        {
+            LOG_ERR("pm_device_action_run suspend, error: %d", err);
+            return err;
+        }
+    }
+    return 0;
+}
+
+
 void uart_on_fun(struct k_timer *timer_id)
 {
     uart_enable(0);
@@ -232,26 +391,26 @@ static void led_set(int value)
 
 static void gp14_change_fun(const struct device *dev, struct gpio_callback *cb, uint32_t pins)
 {
-    if (gpio_pin_get(gpio_dev, 14))
-    {
-        led_set(1);
-        uart_enable(0);
-        LOG_DBG("GP14 pin rised");
-        //  confirm driving hi GP15
-        gpio_pin_set(gpio_dev, 15, 1);
+    if (gpio_pin_get(gpio_dev, 14)) {
         // activate interrupt on GP14 pin to detect falling edge
         gpio_pin_interrupt_configure(gpio_dev, 14, GPIO_INT_LEVEL_INACTIVE);
+        led_set(1);
+        uart_enable(0);
+        //LOG_DBG("GP14 pin rised");
+        //  confirm driving hi GP15
+        gpio_pin_set(gpio_dev, 15, 1);
+        //send_gmtrack_message(GMTRACK_RESUME_FLASH, 0);
 
     }
-    else
-    {
-        gpio_pin_set(gpio_dev, 15, 0);
-        led_set(0);
-        LOG_DBG("GP14 pin falled");
-        uart_disable(0);
-
+    else {
         // activate interrupt on GP14 pin to detect rising edge
         gpio_pin_interrupt_configure(gpio_dev, 14, GPIO_INT_LEVEL_ACTIVE);
+
+        gpio_pin_set(gpio_dev, 15, 0);
+        led_set(0);
+        //LOG_DBG("GP14 pin falled");
+        uart_disable(0);
+        //send_gmtrack_message(GMTRACK_SUSPEND_FLASH, 0);
     }
 }
 
@@ -309,6 +468,8 @@ static void gmtrack_init()
     k_timer_start(&g_start_timer, K_MSEC(2000), K_NO_WAIT);
 
     led_set(1);
+
+
 }
 
 /* Module task function */
@@ -738,6 +899,9 @@ static void flush_cfgchg()
 {
     char buf[60];
     GpsParamsFlushChanged(buf, 60, chg_queue_flush);
+	// After flushing the changes, clear the changed flags
+    GpsParamsClearChanged();
+
 }
 
 static void chg_flush(const char *msg)
@@ -938,7 +1102,79 @@ static int cmd_suspdev(const struct shell *sh, size_t argc, char **argv)
     return 1;
 }
 
-//    k_timer_start(&g_start_timer, K_MSEC(2000), K_NO_WAIT);
+static int cmd_flashena(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc != 2)
+    {
+        printf("Usage: flashena <on|off>\n");
+        return 0;
+    }
+    if (strcmp(argv[1], "on") == 0)
+    {
+        flash_enable(true);
+        printf("Flash enabled\n");
+    }
+    else if (strcmp(argv[1], "off") == 0)
+    {
+        flash_enable(false);
+        printf("Flash disabled\n");
+    }
+    else
+    {
+        printf("Invalid argument. Use 'on' or 'off'.\n");
+        return 0;
+    }
+    return 1;
+}
+static int cmd_sleep(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc != 2)
+    {
+        printf("Usage: sleep <seconds>\n");
+        return 0;
+    }
+    int seconds = atoi(argv[1]);
+    if (seconds <= 0)
+    {
+        printf("Invalid seconds value. Must be a positive integer.\n");
+        return 0;
+    }
+    printf("Sleeping for %d seconds...\n", seconds);
+    k_sleep(K_SECONDS(seconds));
+    printf("Awake!\n");
+    return 1;
+}
+
+static int cmd_dcdc(const struct shell *sh, size_t argc, char **argv)
+{
+    if (argc != 2)
+    {
+        printf("Usage: dcdc <on|off>\n");
+        return 0;
+    }
+    if (strcmp(argv[1], "on") == 0)
+    {
+        volatile uint32_t *reg = (uint32_t *)0x40004578;
+        printf ("Current value: %d\n", *reg);
+        *reg = 1;
+        printf("DCDC enabled: %d\n", *reg);
+    }
+    else if (strcmp(argv[1], "off") == 0)
+    {
+        volatile uint32_t *reg = (uint32_t *)0x40004578;
+        printf ("Current value: %d\n", *reg);
+        *reg = 0;
+        printf("DCDC disabled: %d\n", *reg);
+    }
+    else
+    {
+        printf("Invalid argument. Use 'on' or 'off'.\n");
+        return 0;
+    }
+    return 1;
+}
+
+
 
 /* Define module thread */
 K_THREAD_DEFINE(gmtrack_task_id,
@@ -957,7 +1193,10 @@ SHELL_CMD_REGISTER(u1ena, NULL, "Enable UART1 (LOG) interface", cmd_u1ena);
 SHELL_CMD_REGISTER(datetime, NULL, "Get date and time", cmd_datetime);
 SHELL_CMD_REGISTER(udis, NULL, "Disable UART0 and UART1 for <arg> seconds", cmd_udis);
 SHELL_CMD_REGISTER(suspdev, NULL, "Suspend device <device_name> | flash | spi | gpio", cmd_suspdev);
+SHELL_CMD_REGISTER(sleep, NULL, "Sleep for <arg> seconds", cmd_sleep);
+SHELL_CMD_REGISTER(dcdc, NULL, "Enable/disable DCDC", cmd_dcdc);
 
 SHELL_CMD_REGISTER(send_data, NULL, "Send data to cloud", cmd_send_data);
 SHELL_CMD_REGISTER(sample_data, NULL, "Sample data", cmd_sample_data);
 SHELL_CMD_REGISTER(nw_msg, NULL, "Send network message", cmd_network_msg);
+SHELL_CMD_REGISTER(flashena, NULL, "Enable/disable flash", cmd_flashena);

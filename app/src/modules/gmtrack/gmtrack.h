@@ -20,6 +20,10 @@ enum gmtrack_msg_type {
     GMTRACK_REQUEST,
     GMTRACK_CONFIG_CHG,
 
+    /* internal events*/
+    GMTRACK_SUSPEND_FLASH,
+    GMTRACK_RESUME_FLASH,
+
 };
 
 /* Module message structure */
@@ -51,8 +55,6 @@ typedef struct gmtrack_info {
 } gmtrack_info_t;
 
 extern gmtrack_info_t g_gmtrack_info;
-
-#define MSG_TO_GMTRACK_TYPE(_msg) (*(const struct gmtrack_msg *)_msg)
 
 #ifdef __cplusplus
 }

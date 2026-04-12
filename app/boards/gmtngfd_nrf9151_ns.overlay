@@ -54,6 +54,7 @@
 		};
 	};
 
+	zephyr,pm-device-runtime-auto;
 };
 
 &uart1 {

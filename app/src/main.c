@@ -322,7 +322,7 @@ static const struct smf_state states[] = {
 		connected_run,
 		NULL,
 		&states[STATE_RUNNING],
-		&states[STATE_CONNECTED_SENDING]
+		&states[STATE_CONNECTED_SAMPLING]
 	),
 	/* Connected operation states */
 	[STATE_CONNECTED_SAMPLING] = SMF_CREATE_STATE(
@@ -719,7 +719,8 @@ static void timer_sample_data_work_fn(struct k_work *work)
 		SEND_FATAL_ERROR();
 
 		return;
-	}*/
+	}
+	*/
 	/* GM END */
 }
 
@@ -956,7 +957,6 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 		reported_config.storage_threshold_valid = update_config.storage_threshold_valid;
 
 		GpsParamsGetChanged(&reported_config.gpsparams, &reported_config.gpsparams_chgd);
-		GpsParamsClearChanged();
 
 		update_shadow_reported_section(&reported_config, command_type, command_id,
 					       CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);

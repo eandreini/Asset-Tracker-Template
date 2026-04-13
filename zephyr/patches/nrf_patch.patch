@@ -1,0 +1,74 @@
+diff --git a/lib/location/method_gnss.c b/lib/location/method_gnss.c
+index 8db411ef..08b8ec04 100644
+--- a/lib/location/method_gnss.c
++++ b/lib/location/method_gnss.c
+@@ -33,6 +33,9 @@
+ #include <time.h>
+ #endif
+ 
++
++
++
+ LOG_MODULE_DECLARE(location, CONFIG_LOCATION_LOG_LEVEL);
+ 
+ #if defined(CONFIG_NRF_CLOUD_AGNSS) || defined(CONFIG_NRF_CLOUD_PGPS)
+@@ -154,6 +157,22 @@ static int insuf_timewin_count;
+ static int fixes_remaining;
+ static bool visibility_detection_done;
+ 
++
++/* GM BEGIN - added register function for event notifications */
++typedef void (*notify_fn_t)(int type, const char * msg);
++static notify_fn_t g_notify_fn = NULL;
++
++void method_gnss_register_notify(void (*notify_fn)(int type, const char * msg))
++{
++	LOG_DBG("Registering location_method_gnss notify function");
++	g_notify_fn = notify_fn;
++	g_notify_fn(0, "location_method_gnss registered");
++}
++/* GN END */
++
++
++
++
+ #if defined(CONFIG_LOCATION_DATA_DETAILS)
+ static struct location_data_details_gnss location_data_details_gnss;
+ static int64_t elapsed_time_gnss_start_timestamp;
+@@ -179,6 +198,11 @@ void method_gnss_pgps_handler(struct nrf_cloud_pgps_event *event)
+ 	LOG_DBG("P-GPS event type: %d", event->type);
+ 
+ 	if (event->type == PGPS_EVT_READY) {
++		/* GM BEGIN - added norification of P-GPS predictions ready */
++		if (g_notify_fn) {
++			g_notify_fn(2, "P-GPS predictions ready");
++		}
++		/* GN END */
+ 		/* P-GPS has finished downloading predictions; request the current prediction. */
+ 		k_work_submit_to_queue(location_core_work_queue_get(),
+ 				       &method_gnss_notify_pgps_work);
+@@ -416,6 +440,11 @@ static void method_gnss_pgps_request_work_fn(struct k_work *item)
+ 		LOG_ERR("Failed to request prediction, error: %d", err);
+ 	} else {
+ 		LOG_DBG("P-GPS prediction requested");
++		/* GM BEGIN - added notification of P-GPS predictions ready */
++		if (g_notify_fn) {
++			g_notify_fn(2, "P-GPS predictions requested");
++		}
++		/* GM END */
+ 	}
+ }
+ #endif
+@@ -1055,7 +1084,12 @@ static void method_gnss_pvt_work_fn(struct k_work *item)
+ 	    (insuf_timewin_count >= 0)) {
+ 		insuf_timewin_count++;
+ 
++		/* GM BEGIN - changed count to 2 (it was 5) */
++		if (insuf_timewin_count == 2) {
++		/*
+ 		if (insuf_timewin_count == 5) {
++		*/			
++		/* GM END */	
+ 			if (gnss_config.priority_mode) {
+ 				LOG_DBG("GNSS is not getting long enough time windows. "
+ 					"Triggering GNSS priority mode.");

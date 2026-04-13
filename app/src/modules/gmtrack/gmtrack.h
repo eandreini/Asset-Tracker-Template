@@ -25,6 +25,11 @@ enum gmtrack_msg_type {
     GMTRACK_SUSPEND_FLASH,
     GMTRACK_RESUME_FLASH,
 
+    GMTRACK_MSG_TYPE_COUNT,
+
+    GMTRACK_LOCGNSS_PGPS_REQUESTED,
+    GMTRACK_LOCGNSS_PGPS_READY,
+
 };
 
 /* Module message structure */
@@ -47,6 +52,7 @@ enum gmtrack_channel_p1 {
     gmstep_location = 3,
     gmstep_network = 4,
     gmstep_storage = 5,
+    gmstep_gmtrack = 6,
 };
 
 

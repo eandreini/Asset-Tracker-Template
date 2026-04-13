@@ -20,6 +20,9 @@
 #include "storage.h"
 #include "button.h"
 
+void method_gnss_register_notify(void (*notify_fn)(int type, const char * msg));
+void date_time_core_store(int64_t curr_time_ms, enum date_time_evt_type time_source);
+
 #include <zephyr/pm/device.h>
 #include <zephyr/pm/device_runtime.h>
 #include <zephyr/pm/pm.h>
@@ -339,6 +342,24 @@ static const char * get_storage_msg_type_string(enum storage_msg_type type)
 }
 
 
+static void pgps_notify(int type, const char * msg)
+{
+    LOG_WRN ("Notified location_method_gnss, type: %d msg: %s\r\n", type, msg);
+    switch (type) {
+        case 0: /* location_method_gnss registered */
+            LOG_DBG("location_method_gnss registered");
+            break;
+        case 1: /* P-GPS prediction requested */
+            send_gmtrack_message(GMTRACK_LOCGNSS_PGPS_REQUESTED, 0);
+            break;
+        case 2: /* P-GPS predictions ready */
+            send_gmtrack_message(GMTRACK_LOCGNSS_PGPS_READY, 0);
+            break;
+        default:
+            LOG_WRN("Unknown notification type from location_method_gnss: %d", type);
+    }   
+}
+
 
 /* State machine handlers */
 static enum smf_state_result state_running_run(void *o)
@@ -380,6 +401,15 @@ static enum smf_state_result state_running_run(void *o)
         {
             gmtrack_flash_enable(true);
         }
+        else if (msg->type == GMTRACK_LOCGNSS_PGPS_REQUESTED ||
+                msg->type == GMTRACK_LOCGNSS_PGPS_READY)
+        {
+            add_msg_signal(gmstep_gmtrack, msg->type);
+        }
+        else
+        {
+            LOG_WRN("Unknown message type received on GMTRACK_CHAN: %d", msg->type);
+        }
     }
     else if (&network_chan == state_object->chan)
     {
@@ -416,6 +446,12 @@ static enum smf_state_result state_running_run(void *o)
     {
         const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
         LOG_WRN("Location message: %s", get_location_msg_type_string(msg->type));
+
+        if (msg->type == LOCATION_MODULE_READY)
+        {
+            method_gnss_register_notify(pgps_notify);
+        }
+
         if (msg->type == LOCATION_SEARCH_STARTED ||
             msg->type == LOCATION_SEARCH_DONE ||
             msg->type == LOCATION_GNSS_SEARCH_TRIGGER ||
@@ -696,6 +732,10 @@ static void msg_poll()
     struct gmtrack_poll_msg msg;
     if (k_msgq_get(&g_poll_msgq, &msg, K_NO_WAIT) == 0)
     {
+        // check if there are other data available
+        if (k_msgq_num_used_get(&g_poll_msgq) == 0)
+            release_msg_flag();
+
         // msg available, send it out
         switch (msg.type)
         {
@@ -730,11 +770,6 @@ static void msg_poll()
         printf("\x02"
                "E\x03\r\n");
 
-    // check if there are other data available
-    if (k_msgq_num_used_get(&g_poll_msgq) == 0)
-        release_msg_flag();
-    else
-        rise_msg_flag();
 }
 
 static void add_msg(const struct gmtrack_poll_msg *msg)
@@ -883,11 +918,29 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
                    "ERR\x03\r\n");
         else
         {
+            int64_t date_time_ms = ((int64_t)sec * 1000) + ms;
+            date_time_core_store(date_time_ms, DATE_TIME_OBTAINED_EXT);
             LOG_DBG("Ts: %d %d", sec, ms);
         }
         printf("\x02"
                "OK\x03\r\n");
     }
+    else if (strcmp(argv[1], "getdate") == 0) {
+        int64_t date_time_ms;
+        if (date_time_now(&date_time_ms) < 0)
+        {
+            printf("\x02"
+                   "ERR No date\x03\r\n");
+        }
+        else
+        {
+            uint32_t sec = date_time_ms / 1000;
+            uint32_t ms = date_time_ms % 1000;
+            printf("\x02"
+                   "OK %d.%d\x03\r\n", sec, ms);
+        }
+    }
+
     else if (strcmp(argv[1], "start") == 0)
     {
         printf("\x02"

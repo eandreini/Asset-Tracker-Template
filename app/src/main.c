@@ -1849,7 +1849,7 @@ int main(void)
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
 	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
 
-	LOG_DBG("Main has started");
+	LOG_DBG("Main has started - Ota Test 1");
 
 	task_wdt_id = task_wdt_add(wdt_timeout_ms, task_wdt_callback, (void *)k_current_get());
 	if (task_wdt_id < 0) {

@@ -185,6 +185,14 @@ static void network_msg_send(const struct network_msg *msg)
 		SEND_FATAL_ERROR();
 	}
 }
+/* GM BEGIN - added function to send NW message without parameters */
+static void network_simple_msg_send(enum network_msg_type type)
+{
+	struct network_msg msg = {
+		.type = type
+	};
+	network_msg_send(&msg);
+}
 
 static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 {
@@ -255,18 +263,25 @@ static void lte_lc_evt_handler(const struct lte_lc_evt *const evt)
 		/* GM BEGIN - log other modem events */
 	case LTE_LC_EVT_MODEM_SLEEP_ENTER:
 		LOG_DBG("***LTE MODEM SLEEP ENTER");
+		network_simple_msg_send(NETWORK_LTE_SLEEP_ENTER);
 		break;
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT:
 		LOG_DBG("***LTE MODEM SLEEP EXIT");
+		network_simple_msg_send(NETWORK_LTE_SLEEP_EXIT);
 		break;
 	case LTE_LC_EVT_MODEM_SLEEP_EXIT_PRE_WARNING:
 		LOG_DBG("***LTE MODEM SLEEP EXIT PRE WARNING");
+		network_simple_msg_send(NETWORK_LTE_SLEEP_EXIT_PRE_WARNING);
 		break;
 	case LTE_LC_EVT_RRC_UPDATE:
-		if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE)
+		if (evt->rrc_mode == LTE_LC_RRC_MODE_IDLE) {
 			LOG_DBG("***LTE MODE IDLE");
-		else if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED)	
+			network_simple_msg_send(NETWORK_LTE_RRC_IDLE);
+		}
+		else if (evt->rrc_mode == LTE_LC_RRC_MODE_CONNECTED) {
 			LOG_DBG("***LTE MODE CONNECTED");
+			network_simple_msg_send(NETWORK_LTE_RRC_CONNECTED);
+		}
 		break;
 		/* GM END */
 

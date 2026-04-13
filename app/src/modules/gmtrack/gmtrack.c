@@ -29,31 +29,21 @@ gmtrack_info_t g_gmtrack_info;
 #define DISABLE_UART1_AT_POWERUP 0
 
 /* functions added in main to trigger timer messages */
-void main_send_timer_expired_cloud_message();
-void main_send_timer_expired_sample_data_message();
 
 void start_timer_fun(struct k_timer *timer_id);
 void poll_test_fun(struct k_timer *timer_id);
-void uart_on_fun(struct k_timer *timer_id);
 static void signal_ready();
-static int uart_disable(int uart);
-static int uart_enable(int uart);
-static void led_set(int value);
-static int flash_enable(bool enable);
-static void flush_cfgchg();
-
+static bool g_enable_event_send = false;
 
 
 K_TIMER_DEFINE(g_start_timer, start_timer_fun, NULL);
 K_MSGQ_DEFINE(g_poll_msgq, sizeof(struct gmtrack_poll_msg), 32, 4);
 K_TIMER_DEFINE(g_test_timer, poll_test_fun, NULL);
 
-K_TIMER_DEFINE(g_uarton_timer, uart_on_fun, NULL);
 
-const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
-const struct gpio_dt_spec gp2 = GPIO_DT_SPEC_GET(DT_ALIAS(sw0), gpios);
-const struct device *gpio_dev = DEVICE_DT_GET(DT_NODELABEL(gpio0));
-const struct device *flash_dev = DEVICE_DT_GET(DT_NODELABEL(gd25wb256));
+static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(DT_ALIAS(led0), gpios);
+static const struct device *gpio_dev = DEVICE_DT_GET(DT_NODELABEL(gpio0));
+static const struct device *flash_dev = DEVICE_DT_GET(DT_NODELABEL(gd25wb256));
 
 
 static struct gpio_callback gp14_event_cb;
@@ -136,6 +126,30 @@ static void send_gmtrack_message(enum gmtrack_msg_type type, int32_t value)
     }
 
 }
+static void release_msg_flag()
+{
+    gpio_pin_set(gpio_dev, 3, 0);
+}
+static void rise_msg_flag()
+{
+    gpio_pin_set(gpio_dev, 3, 1);
+}
+
+static void add_msg_signal(enum gmtrack_channel_p1 ch, uint8_t p2)
+{
+    if (!g_enable_event_send)
+        return;
+
+    struct gmtrack_poll_msg msg;
+    msg.type = gmpoll_step;
+    msg.len = 0;
+    msg.p1 = (uint8_t)ch;
+    msg.p2 = p2;
+
+    k_msgq_put(&g_poll_msgq, &msg, K_NO_WAIT);
+    rise_msg_flag();
+}
+
 
 
 /* Watchdog callback */
@@ -146,6 +160,185 @@ static void task_wdt_callback(int channel_id, void *user_data)
 
     SEND_FATAL_ERROR_WATCHDOG_TIMEOUT();
 }
+
+static const char * get_network_msg_type_string(enum network_msg_type type)
+{
+    switch (type)
+    {
+    case NETWORK_DISCONNECTED:
+        return "NETWORK_DISCONNECTED";
+    case NETWORK_CONNECTED:
+        return "NETWORK_CONNECTED";
+    case NETWORK_MODEM_RESET_LOOP:
+        return "NETWORK_MODEM_RESET_LOOP";
+    case NETWORK_UICC_FAILURE:
+        return "NETWORK_UICC_FAILURE";
+    case NETWORK_LIGHT_SEARCH_DONE:
+        return "NETWORK_LIGHT_SEARCH_DONE";
+    case NETWORK_SEARCH_DONE:
+        return "NETWORK_SEARCH_DONE";
+    case NETWORK_ATTACH_REJECTED:
+        return "NETWORK_ATTACH_REJECTED";
+    case NETWORK_PSM_PARAMS:
+        return "NETWORK_PSM_PARAMS";
+    case NETWORK_EDRX_PARAMS:
+        return "NETWORK_EDRX_PARAMS";
+    case NETWORK_SYSTEM_MODE_RESPONSE:
+        return "NETWORK_SYSTEM_MODE_RESPONSE";
+    case NETWORK_CONNECT:
+        return "NETWORK_CONNECT";  
+    case NETWORK_DISCONNECT:
+        return "NETWORK_DISCONNECT";
+    case NETWORK_SEARCH_STOP:
+        return "NETWORK_SEARCH_STOP";
+    case NETWORK_SYSTEM_MODE_SET_LTEM:
+        return "NETWORK_SYSTEM_MODE_SET_LTEM";
+    case NETWORK_SYSTEM_MODE_SET_NBIOT:
+        return "NETWORK_SYSTEM_MODE_SET_NBIOT";
+    case NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT:
+        return "NETWORK_SYSTEM_MODE_SET_LTEM_NBIOT";
+    case NETWORK_SYSTEM_MODE_REQUEST:
+        return "NETWORK_SYSTEM_MODE_REQUEST";           
+    case NETWORK_LTE_RRC_IDLE:
+        return "NETWORK_LTE_RRC_IDLE";
+    case NETWORK_LTE_RRC_CONNECTED:
+        return "NETWORK_LTE_RRC_CONNECTED";
+    case NETWORK_LTE_SLEEP_ENTER:
+        return "NETWORK_LTE_SLEEP_ENTER";
+    case NETWORK_LTE_SLEEP_EXIT:
+        return "NETWORK_LTE_SLEEP_EXIT";
+    default:
+        return "UNKNOWN_NETWORK_MSG_TYPE";
+    }
+}
+static const char * get_cloud_msg_type_string(enum cloud_msg_type type)
+{
+    switch (type)
+    {
+    case CLOUD_DISCONNECTED:
+        return "CLOUD_DISCONNECTED";
+    case CLOUD_CONNECTED:
+        return "CLOUD_CONNECTED";
+    case CLOUD_SHADOW_RESPONSE_DESIRED:
+        return "CLOUD_SHADOW_RESPONSE_DESIRED";
+    case CLOUD_SHADOW_RESPONSE_DELTA:
+        return "CLOUD_SHADOW_RESPONSE_DELTA";
+    case CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED:
+        return "CLOUD_SHADOW_RESPONSE_EMPTY_DESIRED";
+    case CLOUD_SHADOW_RESPONSE_EMPTY_DELTA:
+        return "CLOUD_SHADOW_RESPONSE_EMPTY_DELTA";
+    case CLOUD_PROVISIONED:
+        return "CLOUD_PROVISIONED";
+    case CLOUD_PAYLOAD_JSON:
+        return "CLOUD_PAYLOAD_JSON";
+    case CLOUD_SHADOW_SET_REPORTED_CONFIG:
+        return "CLOUD_SHADOW_SET_REPORTED_CONFIG";
+    case CLOUD_SHADOW_UPDATE_REPORTED_CONFIG:
+        return "CLOUD_SHADOW_UPDATE_REPORTED_CONFIG";
+    case CLOUD_SHADOW_UPDATE_REPORTED_DEVICE:
+        return "CLOUD_SHADOW_UPDATE_REPORTED_DEVICE";
+    case CLOUD_SHADOW_GET_DESIRED:
+        return "CLOUD_SHADOW_GET_DESIRED";
+    case CLOUD_SHADOW_GET_DELTA:    
+        return "CLOUD_SHADOW_GET_DELTA";
+    case CLOUD_PROVISIONING_REQUEST:
+        return "CLOUD_PROVISIONING_REQUEST";        
+    default:
+        return "UNKNOWN_CLOUD_MSG_TYPE";
+    }
+}
+static const char * get_location_msg_type_string(enum location_msg_type type)
+{
+    switch (type)
+    {
+    case LOCATION_SEARCH_STARTED:
+        return "LOCATION_SEARCH_STARTED";
+    case LOCATION_SEARCH_DONE:
+        return "LOCATION_SEARCH_DONE";
+    case LOCATION_CLOUD_REQUEST:
+        return "LOCATION_CLOUD_REQUEST";
+    case LOCATION_AGNSS_REQUEST:
+        return "LOCATION_AGNSS_REQUEST";
+    case LOCATION_GNSS_DATA:
+        return "LOCATION_GNSS_DATA";
+    case LOCATION_MODULE_READY:
+        return "LOCATION_MODULE_READY";
+    case LOCATION_SEARCH_TRIGGER:
+        return "LOCATION_SEARCH_TRIGGER";
+    case LOCATION_GNSS_SEARCH_TRIGGER:
+        return "LOCATION_GNSS_SEARCH_TRIGGER";
+    case LOCATION_SEARCH_CANCEL:
+        return "LOCATION_SEARCH_CANCEL";
+    default:
+        return "UNKNOWN_LOCATION_MSG_TYPE";
+    }
+}
+static const char * get_fota_msg_type_string(enum fota_msg_type type)
+{
+    switch (type)
+    {
+        case FOTA_DOWNLOAD_FAILED:
+            return "FOTA_DOWNLOAD_FAILED";
+        case FOTA_DOWNLOAD_TIMED_OUT:
+            return "FOTA_DOWNLOAD_TIMED_OUT";
+        case FOTA_DOWNLOADING_UPDATE:   
+            return "FOTA_DOWNLOADING_UPDATE";
+        case FOTA_NO_AVAILABLE_UPDATE:
+            return "FOTA_NO_AVAILABLE_UPDATE";
+        case FOTA_SUCCESS_REBOOT_NEEDED:
+            return "FOTA_SUCCESS_REBOOT_NEEDED";
+        case FOTA_IMAGE_APPLY_NEEDED:
+            return "FOTA_IMAGE_APPLY_NEEDED";
+        case FOTA_DOWNLOAD_CANCELED:
+            return "FOTA_DOWNLOAD_CANCELED";
+        case FOTA_DOWNLOAD_REJECTED:
+            return "FOTA_DOWNLOAD_REJECTED";
+        case FOTA_MODULE_READY:
+            return "FOTA_MODULE_READY";
+        case FOTA_POLL_REQUEST:
+            return "FOTA_POLL_REQUEST";
+        case FOTA_IMAGE_APPLY:
+            return "FOTA_IMAGE_APPLY";
+        case FOTA_DOWNLOAD_CANCEL:
+            return "FOTA_DOWNLOAD_CANCEL";
+        default:
+            return "UNKNOWN_FOTA_MSG_TYPE";
+    }
+}
+static const char * get_storage_msg_type_string(enum storage_msg_type type)
+{
+    switch (type)
+    {
+        case STORAGE_SET_THRESHOLD:
+            return "STORAGE_SET_THRESHOLD";
+        case STORAGE_FLUSH:
+            return "STORAGE_FLUSH";
+        case STORAGE_CLEAR:
+            return "STORAGE_CLEAR";
+        case STORAGE_BATCH_REQUEST:
+            return "STORAGE_BATCH_REQUEST";
+        case STORAGE_BATCH_CLOSE:
+            return "STORAGE_BATCH_CLOSE";   
+        case STORAGE_STATS:
+            return "STORAGE_STATS";
+        case STORAGE_THRESHOLD_REACHED:
+            return "STORAGE_THRESHOLD_REACHED";
+        case STORAGE_DATA:
+            return "STORAGE_DATA";
+        case STORAGE_BATCH_AVAILABLE:
+            return "STORAGE_BATCH_AVAILABLE";
+        case STORAGE_BATCH_EMPTY:
+            return "STORAGE_BATCH_EMPTY";
+        case STORAGE_BATCH_ERROR:
+            return "STORAGE_BATCH_ERROR";
+        case STORAGE_BATCH_BUSY:
+            return "STORAGE_BATCH_BUSY";
+        default:
+            return "UNKNOWN_STORAGE_MSG_TYPE";
+    }
+}
+
+
 
 /* State machine handlers */
 static enum smf_state_result state_running_run(void *o)
@@ -177,95 +370,85 @@ static enum smf_state_result state_running_run(void *o)
         else if (msg->type == GMTRACK_CONFIG_CHG)
         {
             LOG_DBG("Reporting cfg changed to Silabs");
-            flush_cfgchg();
+            gmtrack_flush_cfgchg();
         }
         else if (msg->type == GMTRACK_SUSPEND_FLASH)
         {
-            flash_enable(false);
+            gmtrack_flash_enable(false);
         }
         else if (msg->type == GMTRACK_RESUME_FLASH)
         {
-            flash_enable(true);
+            gmtrack_flash_enable(true);
         }
     }
     else if (&network_chan == state_object->chan)
     {
         const struct network_msg *msg = (const struct network_msg *)state_object->msg_buf;
+        LOG_WRN("Network message: %s", get_network_msg_type_string(msg->type));
 
-        if (msg->type == NETWORK_CONNECTED)
-        {
-            LOG_WRN("Network connected message received in gmtrack module");
-        }
-        else if (msg->type == NETWORK_DISCONNECTED)
-        {
-            LOG_WRN("Network disconnected message received in gmtrack module");
-        }
-        else if (msg->type == NETWORK_LIGHT_SEARCH_DONE)
-        {
-            LOG_WRN("Network light search done message received in gmtrack module");
-        }
-        else if (msg->type == NETWORK_SEARCH_DONE)
-        {
-            LOG_WRN("Network search done message received in gmtrack module");
-        }
-        else
-        {
-            LOG_DBG("Unhandled network message received in gmtrack module: %d", msg->type);
-        }
+        if (msg->type == NETWORK_DISCONNECTED ||
+            msg->type == NETWORK_CONNECTED ||
+            msg->type == NETWORK_MODEM_RESET_LOOP ||
+            msg->type == NETWORK_UICC_FAILURE ||
+            msg->type == NETWORK_LIGHT_SEARCH_DONE ||
+            msg->type == NETWORK_SEARCH_DONE ||
+            msg->type == NETWORK_ATTACH_REJECTED ||
+            msg->type == NETWORK_LTE_RRC_IDLE ||
+            msg->type == NETWORK_LTE_RRC_CONNECTED ||
+            msg->type == NETWORK_LTE_SLEEP_ENTER ||
+            msg->type == NETWORK_LTE_SLEEP_EXIT ||
+            msg->type == NETWORK_LTE_SLEEP_EXIT_PRE_WARNING)
+         {
+            add_msg_signal(gmstep_network, msg->type);
+         }
     }
     else if (&cloud_chan == state_object->chan)
     {
         const struct cloud_msg *msg = (const struct cloud_msg *)state_object->msg_buf;
-        if (msg->type == CLOUD_CONNECTED)
+        LOG_WRN("Cloud message: %s", get_cloud_msg_type_string(msg->type));
+        if (msg->type == CLOUD_CONNECTED ||
+            msg->type == CLOUD_DISCONNECTED)
         {
-            LOG_WRN("Cloud connected message received in gmtrack module");
-        }
-        else if (msg->type == CLOUD_DISCONNECTED)
-        {
-            LOG_WRN("Cloud disconnected message received in gmtrack module");
-        }
-        else
-        {
-            LOG_DBG("Cloud message received in gmtrack module: %d", msg->type);
+            add_msg_signal(gmstep_cloud, CLOUD_PROVISIONED);
         }
     }
     else if (&location_chan == state_object->chan)
     {
         const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
-
-        if (msg->type == LOCATION_SEARCH_DONE)
+        LOG_WRN("Location message: %s", get_location_msg_type_string(msg->type));
+        if (msg->type == LOCATION_SEARCH_STARTED ||
+            msg->type == LOCATION_SEARCH_DONE ||
+            msg->type == LOCATION_GNSS_SEARCH_TRIGGER ||
+            msg->type == LOCATION_GNSS_DATA )
         {
-            LOG_WRN("Location search done message received in gmtrack module");
-        }
-        else if (msg->type == LOCATION_GNSS_SEARCH_TRIGGER)
-        {
-            LOG_WRN("GNSS location search trigger message received in gmtrack module");
-        }
-        else
-        {
-            LOG_DBG("Location message received in gmtrack module: %d", msg->type);
+            add_msg_signal(gmstep_location, msg->type);
         }
     }
     else if (&fota_chan == state_object->chan)
     {
         const struct fota_msg *msg = (const struct fota_msg *)state_object->msg_buf;
-
-        LOG_WRN("FOTA message received in gmtrack module: %d", msg->type);
+        LOG_WRN("FOTA message: %s", get_fota_msg_type_string(msg->type));
+         if (msg->type == FOTA_DOWNLOADING_UPDATE ||
+             msg->type == FOTA_NO_AVAILABLE_UPDATE ||
+                msg->type == FOTA_SUCCESS_REBOOT_NEEDED ||
+                msg->type == FOTA_DOWNLOAD_FAILED ||
+                msg->type == FOTA_DOWNLOAD_TIMED_OUT ||
+                msg->type == FOTA_DOWNLOAD_CANCELED ||
+                msg->type == FOTA_DOWNLOAD_REJECTED ||
+             msg->type == FOTA_IMAGE_APPLY_NEEDED)
+        {
+            add_msg_signal(gmstep_fota, msg->type);
+        }
     }
     else if (&storage_chan == state_object->chan)
     {
         const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
-        if (msg->type == STORAGE_THRESHOLD_REACHED)
+        LOG_WRN("Storage message: %s", get_storage_msg_type_string(msg->type));
+
+        if (msg->type == STORAGE_THRESHOLD_REACHED ||
+            msg->type == STORAGE_BATCH_CLOSE) 
         {
-            LOG_WRN("Storage threshold reached message received in gmtrack module");
-        }
-        else if (msg->type == STORAGE_BATCH_CLOSE)
-        {
-            LOG_WRN("Storage batch close message received in gmtrack module");
-        }
-        else
-        {
-            LOG_DBG("Storage message received in gmtrack module: %d", msg->type);
+            add_msg_signal(gmstep_storage, msg->type);
         }
     }
     else
@@ -273,42 +456,12 @@ static enum smf_state_result state_running_run(void *o)
         LOG_WRN("Message received on unknown channel in gmtrack module");
     }
 
-
     return SMF_EVENT_PROPAGATE;
 }
 
 
-int send_network_message(enum network_msg_type type)
-{
-    const struct network_msg msg = {
-        .type = type,
-    };
 
-    int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
-    if (err)
-    {
-        LOG_ERR("zbus_chan_pub, error: %d", err);
-        return 1;
-    }
-    return 0;
-}
-int send_button_message()
-{
-    struct button_msg msg;
-
-    msg.button_number = 1;
-    msg.type = BUTTON_PRESS_SHORT;
-
-    int err = zbus_chan_pub(&button_chan, &msg, PUB_TIMEOUT);
-    if (err)
-    {
-        LOG_ERR("zbus_chan_pub short press, error: %d", err);
-        SEND_FATAL_ERROR();
-    }
-    return 0;
-}
-
-static int uart_disable(int uart)
+int gmtrack_uart_disable(int uart)
 {
     int err;
     const struct device *dev = uart == 0 ? uart0_dev : uart1_dev;
@@ -328,7 +481,7 @@ static int uart_disable(int uart)
     return 0;
 }
 
-static int uart_enable(int uart)
+int gmtrack_uart_enable(int uart)
 {
     int err;
     const struct device *dev = uart == 0 ? uart0_dev : uart1_dev;
@@ -348,7 +501,7 @@ static int uart_enable(int uart)
     return 0;
 }
 
-static int flash_enable(bool enable)
+int gmtrack_flash_enable(bool enable)
 {
     int err;
 
@@ -376,15 +529,23 @@ static int flash_enable(bool enable)
     return 0;
 }
 
-
-void uart_on_fun(struct k_timer *timer_id)
+int gmtrack_send_network_message(enum network_msg_type type)
 {
-    uart_enable(0);
-    uart_enable(1);
-    printf("UART0 and UART1 enabled\r\n");
+    const struct network_msg msg = {
+        .type = type,
+    };
+
+    int err = zbus_chan_pub(&network_chan, &msg, K_SECONDS(1));
+    if (err)
+    {
+        LOG_ERR("zbus_chan_pub, error: %d", err);
+        return 1;
+    }
+    return 0;
 }
 
-static void led_set(int value)
+
+void gmtrack_led_set(int value)
 {
     gpio_pin_set_dt(&led, value);
 }
@@ -394,8 +555,8 @@ static void gp14_change_fun(const struct device *dev, struct gpio_callback *cb, 
     if (gpio_pin_get(gpio_dev, 14)) {
         // activate interrupt on GP14 pin to detect falling edge
         gpio_pin_interrupt_configure(gpio_dev, 14, GPIO_INT_LEVEL_INACTIVE);
-        led_set(1);
-        uart_enable(0);
+        gmtrack_led_set(1);
+        gmtrack_uart_enable(0);
         //LOG_DBG("GP14 pin rised");
         //  confirm driving hi GP15
         gpio_pin_set(gpio_dev, 15, 1);
@@ -407,22 +568,22 @@ static void gp14_change_fun(const struct device *dev, struct gpio_callback *cb, 
         gpio_pin_interrupt_configure(gpio_dev, 14, GPIO_INT_LEVEL_ACTIVE);
 
         gpio_pin_set(gpio_dev, 15, 0);
-        led_set(0);
+        gmtrack_led_set(0);
         //LOG_DBG("GP14 pin falled");
-        uart_disable(0);
+        gmtrack_uart_disable(0);
         //send_gmtrack_message(GMTRACK_SUSPEND_FLASH, 0);
     }
 }
 
 void start_timer_fun(struct k_timer *timer_id)
 {
-    led_set(0);
+    gmtrack_led_set(0);
 
-    uart_disable(0);
+    gmtrack_uart_disable(0);
 
 #if DISABLE_UART1_AT_POWERUP
     LOG_DBG("Disabling uart1");
-    uart_disable(1);
+    gmtrack_uart_disable(1);
 #endif
     signal_ready();
 }
@@ -467,7 +628,7 @@ static void gmtrack_init()
 
     k_timer_start(&g_start_timer, K_MSEC(2000), K_NO_WAIT);
 
-    led_set(1);
+    gmtrack_led_set(1);
 
 
 }
@@ -527,135 +688,8 @@ static void gmtrack_task(void)
     }
 }
 
-static int cmd_gpio(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc == 1)
-    {
-        printf("gpio mode <2|3|14|15> <i|o|dis|pu|pd|od|os> (input/output/disabled/in pullup/in pulldown/open drain/open source)\n");
-        printf("gpio set <2|3|14|15> <0|1|in>\n");
-        printf("gpio get <2|3|14|15>\n");
-        printf("gpio dump\n");
-        return 0;
-    }
-    int gp = -1;
-    if (argc > 2)
-    {
-        gp = atoi(argv[2]);
-        if (gp < 0)
-        {
-            printf("Invalid GP number - use 2 3 14 or 15\n");
-            return 1;
-        }
-    }
 
-    if (argc == 4 && strcmp(argv[1], "mode") == 0)
-    {
-        if (strcmp(argv[3], "i") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT);
-        }
-        else if (strcmp(argv[3], "o") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_OUTPUT);
-        }
-        else if (strcmp(argv[3], "dis") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_DISCONNECTED);
-        }
-        else if (strcmp(argv[3], "pu") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT | GPIO_PULL_UP);
-        }
-        else if (strcmp(argv[3], "pd") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT | GPIO_PULL_DOWN);
-        }
-        else if (strcmp(argv[3], "od") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_OUTPUT | GPIO_OPEN_DRAIN);
-        }
-        else if (strcmp(argv[3], "os") == 0)
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_OUTPUT | GPIO_OPEN_SOURCE);
-        }
-        else
-            return 1;
-        return 0;
-    }
-    else if (argc == 4 && strcmp(argv[1], "set") == 0)
-    {
-        if (argv[3][0] == 'i')
-        {
-            gpio_pin_configure(gpio_dev, gp, GPIO_INPUT);
-        }
-        else if (argv[3][0] == '1')
-        {
-            gpio_pin_set(gpio_dev, gp, 1);
-        }
-        else
-        {
-            gpio_pin_set(gpio_dev, gp, 0);
-        }
-        return 0;
-    }
-    else if (argc == 3 && strcmp(argv[1], "get") == 0)
-    {
-        printf("val:   %d\n", gpio_pin_get(gpio_dev, gp));
-        return 0;
-    }
-    else if (argc == 2 && strcmp(argv[1], "dump") == 0)
-    {
-        printf("GP2:   %d\n", gpio_pin_get(gpio_dev, 2));
-        printf("GP3:   %d\n", gpio_pin_get(gpio_dev, 3));
-        printf("GP14:  %d\n", gpio_pin_get(gpio_dev, 14));
-        printf("GP15:  %d\n", gpio_pin_get(gpio_dev, 15));
-        return 0;
-    }
-    return 1;
-}
 
-static int cmd_led(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc == 2)
-    {
-        if (strcmp(argv[1], "on") == 0)
-            gpio_pin_set_dt(&led, 1);
-        else if (strcmp(argv[1], "off") == 0)
-            gpio_pin_set_dt(&led, 0);
-
-        return 0;
-    }
-    return 1;
-}
-static int cmd_serialtest(const struct shell *sh, size_t argc, char **argv)
-{
-    int num = -1;
-    if (argc == 2)
-    {
-        if (sscanf(argv[1], "%d", &num) != 1)
-        {
-            return 1;
-        }
-    }
-    do
-    {
-        gpio_pin_set_dt(&led, 1);
-        printf("The quick brown fox jumps over the lazy dog\r\n");
-        gpio_pin_set_dt(&led, 0);
-        if (num > 0)
-            num--;
-    } while (num);
-    return 0;
-}
-
-static void release_msg_flag()
-{
-    gpio_pin_set(gpio_dev, 3, 0);
-}
-static void rise_msg_flag()
-{
-    gpio_pin_set(gpio_dev, 3, 1);
-}
 
 static void msg_poll()
 {
@@ -679,7 +713,14 @@ static void msg_poll()
             printf("\x02"
                    "R\x03\r\n");
             break;
+        case gmpoll_step:
+            printf("\x02"
+                   "S%d.%d\x03\r\n",
+                   msg.p1, msg.p2);    
+            break;                   
         default:
+            LOG_ERR("Sending Unknown polled message type %d len %d p1 %d p2 %d data %.*s", 
+                msg.type, msg.len, msg.p1, msg.p2, msg.len, msg.data );
             printf("\x02"
                    "U\x03\r\n");
             break;
@@ -701,6 +742,8 @@ static void add_msg(const struct gmtrack_poll_msg *msg)
     k_msgq_put(&g_poll_msgq, msg, K_NO_WAIT);
     rise_msg_flag();
 }
+
+
 
 static int parse_hex_u64(const char *strval, uint64_t *val)
 {
@@ -744,6 +787,10 @@ static void msg_cfgpar(const char *name, const char *value)
 
 static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
 {
+    /*LOG_DBG("Received silmsg command with %d args", argc);
+    if (argc > 1)
+        LOG_DBG("Arg1: %s", argv[1]);*/
+
     if (argc < 2)
     {
         return 1;
@@ -853,6 +900,7 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
     }
     else if (strcmp(argv[1], "connect") == 0)
     {
+        gmtrack_send_network_message(NETWORK_CONNECT);
         printf("\x02"
                "OK\x03\r\n");
     }
@@ -869,11 +917,6 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
     return 0;
 }
 
-static int cmd_cfgdump(const struct shell *sh, size_t argc, char **argv)
-{
-    GpsParamsDump();
-    return 1;
-}
 
 static void signal_ready()
 {
@@ -883,6 +926,7 @@ static void signal_ready()
     memcpy(pollm.data, "READY", 5);
     pollm.data[pollm.len] = 0;
     add_msg(&pollm);
+    g_enable_event_send = true;
 }
 
 static void chg_queue_flush(const char *msg)
@@ -895,7 +939,7 @@ static void chg_queue_flush(const char *msg)
     add_msg(&pollm);
 }
 
-static void flush_cfgchg()
+void gmtrack_flush_cfgchg()
 {
     char buf[60];
     GpsParamsFlushChanged(buf, 60, chg_queue_flush);
@@ -904,275 +948,11 @@ static void flush_cfgchg()
 
 }
 
-static void chg_flush(const char *msg)
-{
-    printf("CfgRow: %s\n", msg);
-}
 
-static int cmd_cfgchg(const struct shell *sh, size_t argc, char **argv)
-{
-    char buf[60];
 
-    int rv = GpsParamsFlushChanged(buf, 60, chg_flush);
-    printf("%d parameters changed\n", rv);
-    flush_cfgchg();
-    return 1;
-}
-static int cmd_u1ena(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc != 2)
-        return 0;
 
-    if (strcmp(argv[1], "on") == 0)
-    {
-        uart_enable(1);
-#ifdef CONFIG_NRF_MODEM_LIB_TRACE_BACKEND_UART
-        err = nrf_modem_lib_trace_level_set(CONFIG_NRF_MODEM_LIB_TRACE_LEVEL_FULL);
-        if (err)
-        {
-            LOG_ERR("nrf_modem_lib_trace_level_set, error: %d", err);
-            return err;
-        }
-#endif
 
-        printf("Uart1 enabled\n");
-    }
-    else
-    {
-        uart_disable(1);
-        printf("Uart1 disabled\n");
-    }
-    return 1;
-}
-static int cmd_u0ena(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc != 2)
-        return 0;
-
-    if (strcmp(argv[1], "on") == 0)
-    {
-        uart_enable(0);
-        printf("Uart0 enabled\n");
-    }
-    else
-    {
-        uart_disable(0);
-        printf("Uart0 disabled\n");
-    }
-    return 1;
-}
-
-static int cmd_datetime(const struct shell *sh, size_t argc, char **argv)
-{
-    int64_t now;
-    int rv = date_time_now(&now);
-    printf("Current unixtime rv: %d %lld\n", rv, now);
-    return 1;
-}
-
-static int cmd_send_data(const struct shell *sh, size_t argc, char **argv)
-{
-    (void)sh;
-    (void)argc;
-    (void)argv;
-
-    main_send_timer_expired_cloud_message();
-    return 1;
-}
-static int cmd_sample_data(const struct shell *sh, size_t argc, char **argv)
-{
-    (void)sh;
-    (void)argc;
-    (void)argv;
-
-    // main_send_timer_expired_sample_data_message();
-    send_button_message();
-
-    return 1;
-}
-
-static int cmd_network_msg(const struct shell *sh, size_t argc, char **argv)
-{
-    (void)sh;
-    if (argc != 2)
-    {
-        printf("Usage: network_msg <msg_type>\n");
-        printf("msg_type: conn for connect, disc for disconnect\n");
-        return 0;
-    }
-    enum network_msg_type type;
-    if (strcmp(argv[1], "con") == 0)
-    {
-        type = NETWORK_CONNECT;
-    }
-    else if (strcmp(argv[1], "disc") == 0)
-    {
-        type = NETWORK_DISCONNECT;
-    }
-    else
-    {
-        printf("Invalid msg_type. Use 'conn' or 'disc'.\n");
-        return 0;
-    }
-    send_network_message(type);
-    return 1;
-}
-
-static int disable_device(const char *name)
-{
-    const struct device *dev;
-    int ret;
-
-    dev = shell_device_get_binding(name);
-    if (dev == NULL)
-    {
-        printf("Invalid device: %s", name);
-        return -ENODEV;
-    }
-
-    if (pm_device_runtime_is_enabled(dev))
-    {
-        printf("Device %s uses runtime PM, use the runtime functions instead",
-               dev->name);
-        return -EINVAL;
-    }
-
-    ret = pm_device_action_run(dev, PM_DEVICE_ACTION_SUSPEND);
-    if (ret < 0)
-    {
-        printf("Device %s error: %d", "suspend", ret);
-        return ret;
-    }
-    return 0;
-}
-
-static int cmd_udis(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc != 2)
-    {
-        printf("Usage: udis <seconds>\n");
-        return 0;
-    }
-    int seconds = atoi(argv[1]);
-    if (seconds <= 0)
-    {
-        printf("Invalid seconds value. Must be a positive integer.\n");
-        return 0;
-    }
-    uart_disable(0);
-    uart_disable(1);
-
-    printf("UART0 and UART1 disabled for %d seconds\n", seconds);
-    k_timer_start(&g_uarton_timer, K_SECONDS(seconds), K_NO_WAIT);
-    return 1;
-}
-
-static int cmd_suspdev(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc == 1)
-    {
-        disable_device("gd25wb256e3ir@1");
-        disable_device("spi@b000");
-        disable_device("gpio@842500");
-    }
-    else if (argc == 2)
-    {
-        if (strcmp(argv[1], "flash") == 0)
-        {
-            disable_device("gd25wb256e3ir@1");
-        }
-        else if (strcmp(argv[1], "spi") == 0)
-        {
-            disable_device("spi@b000");
-        }
-        else if (strcmp(argv[1], "gpio") == 0)
-        {
-            disable_device("gpio@842500");
-        }
-        else
-        {
-            disable_device(argv[1]);
-        }
-    }
-    else
-    {
-        printf("Usage: suspdev [device_name] | flash | spi | gpio\n");
-        return 0;
-    }
-    return 1;
-}
-
-static int cmd_flashena(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc != 2)
-    {
-        printf("Usage: flashena <on|off>\n");
-        return 0;
-    }
-    if (strcmp(argv[1], "on") == 0)
-    {
-        flash_enable(true);
-        printf("Flash enabled\n");
-    }
-    else if (strcmp(argv[1], "off") == 0)
-    {
-        flash_enable(false);
-        printf("Flash disabled\n");
-    }
-    else
-    {
-        printf("Invalid argument. Use 'on' or 'off'.\n");
-        return 0;
-    }
-    return 1;
-}
-static int cmd_sleep(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc != 2)
-    {
-        printf("Usage: sleep <seconds>\n");
-        return 0;
-    }
-    int seconds = atoi(argv[1]);
-    if (seconds <= 0)
-    {
-        printf("Invalid seconds value. Must be a positive integer.\n");
-        return 0;
-    }
-    printf("Sleeping for %d seconds...\n", seconds);
-    k_sleep(K_SECONDS(seconds));
-    printf("Awake!\n");
-    return 1;
-}
-
-static int cmd_dcdc(const struct shell *sh, size_t argc, char **argv)
-{
-    if (argc != 2)
-    {
-        printf("Usage: dcdc <on|off>\n");
-        return 0;
-    }
-    if (strcmp(argv[1], "on") == 0)
-    {
-        volatile uint32_t *reg = (uint32_t *)0x40004578;
-        printf ("Current value: %d\n", *reg);
-        *reg = 1;
-        printf("DCDC enabled: %d\n", *reg);
-    }
-    else if (strcmp(argv[1], "off") == 0)
-    {
-        volatile uint32_t *reg = (uint32_t *)0x40004578;
-        printf ("Current value: %d\n", *reg);
-        *reg = 0;
-        printf("DCDC disabled: %d\n", *reg);
-    }
-    else
-    {
-        printf("Invalid argument. Use 'on' or 'off'.\n");
-        return 0;
-    }
-    return 1;
-}
+SHELL_CMD_REGISTER(silmsg, NULL, "Silabs msg", cmd_silmsg);
 
 
 
@@ -1182,21 +962,3 @@ K_THREAD_DEFINE(gmtrack_task_id,
                 gmtrack_task, NULL, NULL, NULL,
                 K_LOWEST_APPLICATION_THREAD_PRIO, 0, 0);
 
-SHELL_CMD_REGISTER(led, NULL, "Turn led on and off", cmd_led);
-SHELL_CMD_REGISTER(gpio, NULL, "get/set gpio 0/1", cmd_gpio);
-SHELL_CMD_REGISTER(serialtest, NULL, "Dump on serial <arg> sentences, infinite if 0 or missing param", cmd_serialtest);
-SHELL_CMD_REGISTER(silmsg, NULL, "Silabs msg", cmd_silmsg);
-SHELL_CMD_REGISTER(cfgdump, NULL, "Dump config", cmd_cfgdump);
-SHELL_CMD_REGISTER(cfgchg, NULL, "Send changed config to SILAB", cmd_cfgchg);
-SHELL_CMD_REGISTER(u0ena, NULL, "Enable UART0 (CMD) interface", cmd_u0ena);
-SHELL_CMD_REGISTER(u1ena, NULL, "Enable UART1 (LOG) interface", cmd_u1ena);
-SHELL_CMD_REGISTER(datetime, NULL, "Get date and time", cmd_datetime);
-SHELL_CMD_REGISTER(udis, NULL, "Disable UART0 and UART1 for <arg> seconds", cmd_udis);
-SHELL_CMD_REGISTER(suspdev, NULL, "Suspend device <device_name> | flash | spi | gpio", cmd_suspdev);
-SHELL_CMD_REGISTER(sleep, NULL, "Sleep for <arg> seconds", cmd_sleep);
-SHELL_CMD_REGISTER(dcdc, NULL, "Enable/disable DCDC", cmd_dcdc);
-
-SHELL_CMD_REGISTER(send_data, NULL, "Send data to cloud", cmd_send_data);
-SHELL_CMD_REGISTER(sample_data, NULL, "Sample data", cmd_sample_data);
-SHELL_CMD_REGISTER(nw_msg, NULL, "Send network message", cmd_network_msg);
-SHELL_CMD_REGISTER(flashena, NULL, "Enable/disable flash", cmd_flashena);

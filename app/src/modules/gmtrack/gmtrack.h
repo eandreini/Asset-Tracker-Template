@@ -3,6 +3,7 @@
 
 #include <zephyr/kernel.h>
 #include <zephyr/zbus/zbus.h>
+#include "network.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,7 +38,18 @@ enum gmtrack_poll_type {
     gmpoll_text = 1,
     gmpoll_config = 2,
     gmpoll_ready = 3,
+    gmpoll_step = 4,
 };
+
+enum gmtrack_channel_p1 {
+    gmstep_cloud = 1,
+    gmstep_fota = 2,
+    gmstep_location = 3,
+    gmstep_network = 4,
+    gmstep_storage = 5,
+};
+
+
 
 struct gmtrack_poll_msg {
     uint8_t type;
@@ -55,6 +67,14 @@ typedef struct gmtrack_info {
 } gmtrack_info_t;
 
 extern gmtrack_info_t g_gmtrack_info;
+
+int gmtrack_uart_disable(int uart);
+int gmtrack_uart_enable(int uart);
+void gmtrack_led_set(int value);
+void gmtrack_flush_cfgchg();
+int gmtrack_flash_enable(bool enable);
+int gmtrack_send_network_message(enum network_msg_type type);
+
 
 #ifdef __cplusplus
 }

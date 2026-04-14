@@ -53,7 +53,7 @@ index 8db411ef..08b8ec04 100644
  		LOG_DBG("P-GPS prediction requested");
 +		/* GM BEGIN - added notification of P-GPS predictions ready */
 +		if (g_notify_fn) {
-+			g_notify_fn(2, "P-GPS predictions requested");
++			g_notify_fn(1, "P-GPS predictions requested");
 +		}
 +		/* GM END */
  	}

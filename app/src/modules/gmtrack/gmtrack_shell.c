@@ -212,7 +212,7 @@ static int disable_device(const char *name)
 
 static int cmd_cfgdump(const struct shell *sh, size_t argc, char **argv)
 {
-    GpsParamsDump();
+    GpsParamsDump(&g_gpsparams, &g_gpsparams_vld);
     return 1;
 }
 
@@ -226,7 +226,7 @@ static int cmd_cfgchg(const struct shell *sh, size_t argc, char **argv)
 {
     char buf[60];
 
-    int rv = GpsParamsFlushChanged(buf, 60, chg_flush);
+    int rv = GpsParamsFlushValids(buf, 60, chg_flush);
     printf("%d parameters changed\n", rv);
     gmtrack_flush_cfgchg();
     return 1;

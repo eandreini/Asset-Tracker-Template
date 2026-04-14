@@ -27,7 +27,7 @@ struct config_params {
 
 	/* GM BEGIN - gps params */
 	gpsparams_t gpsparams;
-	gpsparams_chgd_t gpsparams_chgd;
+	gpsparams_valid_t gpsparams_valid;
 	/* GM END */
 };
 

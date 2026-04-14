@@ -55,90 +55,90 @@ typedef struct {
     uint8_t Ts7IntervalM;  // interval of fixes in minutes
     uint8_t Ts8IntervalM;  // interval of fixes in minutes
 
-    uint8_t Ode;
+    uint8_t OutDoorEnable;
 
 } gpsparams_t;
 
 typedef struct {
-    uint32_t chgdPresenceTimeoutIdleSec : 1;
-    uint32_t chgdPresenceTimeoutActSec : 1;
-    uint32_t chgdPresenceHysteresisSec : 1;
+    uint32_t vldPresenceTimeoutIdleSec : 1;
+    uint32_t vldPresenceTimeoutActSec : 1;
+    uint32_t vldPresenceHysteresisSec : 1;
 
-    uint32_t chgdNotifyPresenceLost : 1;
-    uint32_t chgdNotifyAccMove : 1;
-    uint32_t chgdNotifySledEvents : 1;
-    uint32_t chgdCoaleshTimeMin : 1;
+    uint32_t vldNotifyPresenceLost : 1;
+    uint32_t vldNotifyAccMove : 1;
+    uint32_t vldNotifySledEvents : 1;
+    uint32_t vldCoaleshTimeMin : 1;
 
-    uint32_t chgdMinGpsStrength : 1;
-    uint32_t chgdGpsFixTimeoutSec : 1;
-    uint32_t chgdGpsFixDelaySec : 1;
+    uint32_t vldMinGpsStrength : 1;
+    uint32_t vldGpsFixTimeoutSec : 1;
+    uint32_t vldGpsFixDelaySec : 1;
 
-    uint32_t chgdLteMinStrenght : 1;
-    uint32_t chgdLteTimeoutSec : 1;
-    uint32_t chgdLteOnDemandFreqMin : 1;
-    uint32_t chgdLteOnDemandOffsetMin : 1;
-    uint32_t chgdLteConnOnNoFix : 1;
-    uint32_t chgdGpsAidIntervalH : 1;
-    uint32_t chgdGpsAidNumDays : 1;
-    uint32_t chgdGpsAidOnlyM1 : 1;
+    uint32_t vldLteMinStrenght : 1;
+    uint32_t vldLteTimeoutSec : 1;
+    uint32_t vldLteOnDemandFreqMin : 1;
+    uint32_t vldLteOnDemandOffsetMin : 1;
+    uint32_t vldLteConnOnNoFix : 1;
+    uint32_t vldGpsAidIntervalH : 1;
+    uint32_t vldGpsAidNumDays : 1;
+    uint32_t vldGpsAidOnlyM1 : 1;
 
-    uint32_t chgdTs1Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs1Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs1IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs1Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs1Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs1IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs2Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs2Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs2IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs2Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs2Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs2IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs3Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs3Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs3IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs3Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs3Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs3IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs4Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs4Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs4IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs4Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs4Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs4IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs5Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs5Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs5IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs5Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs5Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs5IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs6Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs6Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs6IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs6Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs6Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs6IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs7Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs7Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs7IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs7Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs7Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs7IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdTs8Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
-    uint32_t chgdTs8Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
-    uint32_t chgdTs8IntervalM : 1;  // interval of fixes in minutes
+    uint32_t vldTs8Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
+    uint32_t vldTs8Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)
+    uint32_t vldTs8IntervalM : 1;  // interval of fixes in minutes
 
-    uint32_t chgdOde : 1;
+    uint32_t vldOutDoorEnable : 1;
 
-} gpsparams_chgd_t;
+} gpsparams_valid_t;
 
 
 struct shadow_object;
 
 
-void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd);
-void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_chgd_t * gpschgd, struct shadow_object * shadow);
-void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_chgd_t * gpschgd);
-void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd);
-void GpsParamsGetAll(gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd);
+void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld);
+void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsvld, struct shadow_object * shadow);
+void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsvld);
+void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld);
+void GpsParamsGetAll(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld);
 
-void GpsParamsDump();
-void GpsParamsTestFill();
+void GpsParamsDump(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsvld);
+void GpsParamsTestFill(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld);
 int GpsParamsSetValue(const char * name, int value);
 
 typedef void gpsparams_flush_cb_t(const char * str);
-int GpsParamsFlushChanged(char * buffer, int maxlen, gpsparams_flush_cb_t cb);
-int GpsParamsIsChanged(const gpsparams_chgd_t * gpschgd);
+int GpsParamsFlushValids(char * buffer, int maxlen, gpsparams_flush_cb_t cb);
+int GpsParamsHasValids(const gpsparams_valid_t * gpsvld);
 int GpsParamsClearChanged();
 
 
 extern gpsparams_t g_gpsparams;
-extern gpsparams_chgd_t g_gpsparams_chgd;
+extern gpsparams_valid_t g_gpsparams_vld;
 
 #endif //_GPSPARAMS_H_

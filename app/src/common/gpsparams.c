@@ -8,51 +8,30 @@
 LOG_MODULE_REGISTER(gpsparams_helper, CONFIG_APP_LOG_LEVEL);
 
 gpsparams_t g_gpsparams;
-gpsparams_chgd_t g_gpsparams_chgd;
+gpsparams_valid_t g_gpsparams_vld;
 
-#define DUMP(param,spcs)\
-    printf(#param":"spcs" %d %c\n", g_gpsparams.param, g_gpsparams_chgd.chgd##param ? 'C':' ');
-
-#define SET(param,value)\
-    g_gpsparams.param = value;\
-    g_gpsparams_chgd.chgd##param = 1;
+    
 
 
-#define CBOR2PAR(srcname,dstname)\
-	if (shadow->config.srcname##_present) {\
-		gpschgd->chgd##dstname = 1;\
-		gpsparams->dstname = shadow->config.srcname.srcname;\
-		LOG_DBG ("***Param "#srcname"("#dstname") received value %d ***",shadow->config.srcname.srcname);\
-	}\
-	else\
-		gpschgd->chgd##dstname = 0;\
-
-#define PAR2CBOR(srcname,dstname)\
-	if (gpschgd->chgd##srcname) {\
-		shadow->config_present = true;\
-		shadow->config.dstname##_present = true;\
-		shadow->config.dstname.dstname = gpsparams->srcname;\
-		LOG_DBG ("***Param "#srcname"("#dstname") sent value %d ***",shadow->config.dstname.dstname);\
-	}\
-    else {\
-        shadow->config.dstname##_present = false;\
-    }
-
+/* for each parameter, if it is valid, check if is different from stored one. If different set dest valid flag (used as change flag), othervise clear it */
+/* if input parameters is not valid clear dest valid flag (still used as change flag)*/
 
 #define SAVEPAR(param)\
-    if (gpschgd->chgd##param) {\
-        g_gpsparams.param = gpsparams->param;\
-        g_gpsparams_chgd.chgd##param = 1;\
+    if (gpsvld->vld##param) {\
+        if (gpsparams->param != g_gpsparams.param) {\
+            g_gpsparams.param = gpsparams->param;\
+            g_gpsparams_vld.vld##param = 1;\
+            LOG_DBG ("***Param "#param" received value %d is different from stored value %d ***", gpsparams->param, g_gpsparams.param);\
+        }\
+        else {\
+            g_gpsparams_vld.vld##param = 0;\
+        }\
     }\
     else {\
-        g_gpsparams_chgd.chgd##param = 0;\
+        g_gpsparams_vld.vld##param = 0;\
     }
 
-#define LOADPAR(param)\
-    gpsparams->param = g_gpsparams.param;\
-    gpschgd->chgd##param = g_gpsparams_chgd.chgd##param;
-    
-void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_chgd_t * gpschgd)
+void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsvld)
 {
     SAVEPAR(PresenceTimeoutIdleSec);
     SAVEPAR(PresenceTimeoutActSec);
@@ -108,9 +87,14 @@ void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_chgd_t *
     SAVEPAR(Ts8Dow);
     SAVEPAR(Ts8IntervalM);
 
-    SAVEPAR(Ode);
+    SAVEPAR(OutDoorEnable);
 }
-void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd)
+
+#define LOADPAR(param)\
+    gpsparams->param = g_gpsparams.param;\
+    gpsvld->vld##param = g_gpsparams_vld.vld##param;
+
+void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
 {
     LOADPAR(PresenceTimeoutIdleSec);
     LOADPAR(PresenceTimeoutActSec);
@@ -166,18 +150,33 @@ void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd)
     LOADPAR(Ts8Dow);
     LOADPAR(Ts8IntervalM);
 
-    LOADPAR(Ode);
+    LOADPAR(OutDoorEnable);
 }
 
-void GpsParamsGetAll(gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd)
+void GpsParamsGetAll(gpsparams_t * gpsparams, gpsparams_valid_t * gpschgd)
 {
     memcpy(gpsparams, &g_gpsparams, sizeof(gpsparams_t));
-    memset(gpschgd, 0xff, sizeof(gpsparams_chgd_t));
+    memset(gpschgd, 0xff, sizeof(gpsparams_valid_t));
 }
 
 
 
-void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t * gpsparams, gpsparams_chgd_t * gpschgd)
+
+
+
+
+/* copy CBOR parameters (with short names)from shadow and store in gpsparams structures gpsparams and gpsvld */
+
+#define CBOR2PAR(srcname,dstname)\
+	if (shadow->config.srcname##_present) {\
+		gpsvld->vld##dstname = 1;\
+		gpsparams->dstname = shadow->config.srcname.srcname;\
+		LOG_DBG ("***Param "#srcname"("#dstname") received value %d ***",shadow->config.srcname.srcname);\
+	}\
+	else\
+		gpsvld->vld##dstname = 0;\
+
+void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
 {
     CBOR2PAR(PTIS, PresenceTimeoutIdleSec);
     CBOR2PAR(PTAC, PresenceTimeoutActSec);
@@ -233,11 +232,26 @@ void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t *
     CBOR2PAR(TD8, Ts8Dow);
     CBOR2PAR(TI8, Ts8IntervalM);
 
-    CBOR2PAR(ODE, Ode);
+    CBOR2PAR(ODE, OutDoorEnable);
 
 }
-    
-void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_chgd_t * gpschgd, struct shadow_object * shadow)
+
+
+
+/* copy gpsparams and gpschgd to CBOR shadow (with short names) */
+
+#define PAR2CBOR(srcname,dstname)\
+	if (gpsvld->vld##srcname) {\
+		shadow->config_present = true;\
+		shadow->config.dstname##_present = true;\
+		shadow->config.dstname.dstname = gpsparams->srcname;\
+		LOG_DBG ("***Param "#srcname"("#dstname") sent value %d ***",shadow->config.dstname.dstname);\
+	}\
+    else {\
+        shadow->config.dstname##_present = false;\
+    }
+
+void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsvld, struct shadow_object * shadow)
 {
     PAR2CBOR(PresenceTimeoutIdleSec, PTIS);
     PAR2CBOR(PresenceTimeoutActSec, PTAC);
@@ -293,10 +307,13 @@ void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_chgd_
     PAR2CBOR(Ts8Dow, TD8);
     PAR2CBOR(Ts8IntervalM, TI8);
 
-    PAR2CBOR(Ode, ODE);
+    PAR2CBOR(OutDoorEnable, ODE);
 }
 
-void GpsParamsDump()
+#define DUMP(param,spcs)\
+    printf(#param":"spcs" %d %c\n", gpsparams->param, gpsvld->vld##param ? 'C':' ');
+
+void GpsParamsDump(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsvld)
 {
     DUMP(PresenceTimeoutIdleSec, "   ");
     DUMP(PresenceTimeoutActSec, "    ");
@@ -356,10 +373,16 @@ void GpsParamsDump()
     DUMP(Ts8Dow, "                   ");
     DUMP(Ts8IntervalM, "             ");
     printf("\n");
-    DUMP(Ode, "                      ");
+    DUMP(OutDoorEnable, "            ");
     
 }
-void GpsParamsTestFill()
+
+
+#define SET(param,value)\
+    gpsparams->param = value;\
+    gpsvld->vld##param = 1;
+
+void GpsParamsTestFill(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
 {
     SET(PresenceTimeoutIdleSec, 900);
     SET(PresenceTimeoutActSec, 900);
@@ -415,14 +438,15 @@ void GpsParamsTestFill()
     SET(Ts8Dow, 0);     
     SET(Ts8IntervalM, 0);
 
-    SET(Ode, 0);
+    SET(OutDoorEnable, 0);
 }
+
 
 
 #define CHECK_PAR(name,field,value)\
     if (strcmp(name, #field) == 0) {\
         g_gpsparams.field = value;\
-        g_gpsparams_chgd.chgd##field = 1;\
+        g_gpsparams_vld.vld##field = 1;\
         return 0;\
     }
 
@@ -483,14 +507,14 @@ int GpsParamsSetValue(const char * name, int value)
     CHECK_PAR(name, Ts8Dow, value)
     CHECK_PAR(name, Ts8IntervalM, value)
 
-    CHECK_PAR(name, Ode, value)
+    CHECK_PAR(name, OutDoorEnable, value)
 
     return -1;
 
 }
 
 #define GET_CHANGED(param)\
-    if (g_gpsparams_chgd.chgd##param) {\
+    if (g_gpsparams_vld.vld##param) {\
         changed++;\
         sprintf(tmp,#param"=%d,", g_gpsparams.param);\
         int ln = strlen(tmp);\
@@ -506,10 +530,10 @@ int GpsParamsSetValue(const char * name, int value)
     }
 
 #define IS_CHANGED(param)\
-    if (gpschgd->chgd##param)\
+    if (gpsvld->vld##param)\
         return 1;\
 
-int GpsParamsFlushChanged(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
+int GpsParamsFlushValids(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
 {
     char tmp[32];
     char * ptr = buffer;
@@ -570,7 +594,7 @@ int GpsParamsFlushChanged(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
     GET_CHANGED(Ts8Dow)
     GET_CHANGED(Ts8IntervalM)
     
-    GET_CHANGED(Ode)    
+    GET_CHANGED(OutDoorEnable)    
 
     if (ptr != buffer) {
         *ptr = 0;\
@@ -579,7 +603,7 @@ int GpsParamsFlushChanged(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
 
     return changed;
 }
-int GpsParamsIsChanged(const gpsparams_chgd_t * gpschgd)
+int GpsParamsHasValids(const gpsparams_valid_t * gpsvld)
 {
     IS_CHANGED(PresenceTimeoutIdleSec)
     IS_CHANGED(PresenceTimeoutActSec)
@@ -635,12 +659,12 @@ int GpsParamsIsChanged(const gpsparams_chgd_t * gpschgd)
     IS_CHANGED(Ts8Dow)
     IS_CHANGED(Ts8IntervalM)
     
-    IS_CHANGED(Ode)
+    IS_CHANGED(OutDoorEnable)
 
     return 0;
 }
 int GpsParamsClearChanged()
 {
-    memset(&g_gpsparams_chgd, 0, sizeof(gpsparams_chgd_t));
+    memset(&g_gpsparams_vld, 0, sizeof(gpsparams_valid_t));
     return 0;
 }

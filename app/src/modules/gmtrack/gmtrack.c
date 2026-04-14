@@ -418,6 +418,7 @@ static enum smf_state_result state_running_run(void *o)
 
         if (msg->type == NETWORK_DISCONNECTED ||
             msg->type == NETWORK_CONNECTED ||
+            msg->type == NETWORK_CONNECT ||
             msg->type == NETWORK_MODEM_RESET_LOOP ||
             msg->type == NETWORK_UICC_FAILURE ||
             msg->type == NETWORK_LIGHT_SEARCH_DONE ||
@@ -439,7 +440,7 @@ static enum smf_state_result state_running_run(void *o)
         if (msg->type == CLOUD_CONNECTED ||
             msg->type == CLOUD_DISCONNECTED)
         {
-            add_msg_signal(gmstep_cloud, CLOUD_PROVISIONED);
+            add_msg_signal(gmstep_cloud, msg->type);
         }
     }
     else if (&location_chan == state_object->chan)
@@ -660,7 +661,7 @@ static void gmtrack_init()
         LOG_ERR("gp14 add callback failed (%d)\n",err);
         return;
     }
-    GpsParamsTestFill();
+    GpsParamsTestFill(&g_gpsparams, &g_gpsparams_vld);
 
     k_timer_start(&g_start_timer, K_MSEC(2000), K_NO_WAIT);
 
@@ -990,12 +991,13 @@ static void chg_queue_flush(const char *msg)
     memcpy(pollm.data, msg, pollm.len);
     pollm.data[pollm.len] = 0;
     add_msg(&pollm);
+    printf("Sent cfg change msg to Silabs: %s\r\n", msg);
 }
 
 void gmtrack_flush_cfgchg()
 {
     char buf[60];
-    GpsParamsFlushChanged(buf, 60, chg_queue_flush);
+    GpsParamsFlushValids(buf, 60, chg_queue_flush);
 	// After flushing the changes, clear the changed flags
     GpsParamsClearChanged();
 

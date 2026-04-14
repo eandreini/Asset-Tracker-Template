@@ -60,7 +60,7 @@ int decode_shadow_parameters_from_cbor(const uint8_t *cbor, size_t len,
 		}
 
 		/* GM BEGIN - gps params */
-		GpsParamsDecodeFromCbor(&shadow, &config->gpsparams, &config->gpsparams_chgd);
+		GpsParamsDecodeFromCbor(&shadow, &config->gpsparams, &config->gpsparams_valid);
 		/* GM END */
 	}
 
@@ -113,7 +113,7 @@ int encode_shadow_parameters_to_cbor(const struct config_params *config, uint32_
 	}
 
 
-	GpsParamsEncodeToCbor(&config->gpsparams, &config->gpsparams_chgd, &shadow);
+	GpsParamsEncodeToCbor(&config->gpsparams, &config->gpsparams_valid, &shadow);
 
 	/* Encode the shadow object to CBOR */
 	err = cbor_encode_shadow_object(buffer, buffer_size, &shadow, &encode_len);

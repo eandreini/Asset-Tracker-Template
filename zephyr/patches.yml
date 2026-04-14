@@ -1,0 +1,11 @@
+patches:
+  - path: nrf_patch.patch
+    sha256sum: 5bdcfa5bfcd73d02747ede418e992d1d01d5b6aa8e17b90dafd371d6ed31fd3b
+    module: nrf
+    author: Andrea Bigagli
+    email: andrea.bigagli@grupposimtel.com
+    date: 2026-04-13
+    upstreamable: false
+    comments: |
+      Local fix to nrf SDK method_gnss.c without forking
+

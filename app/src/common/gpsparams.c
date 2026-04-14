@@ -19,9 +19,9 @@ gpsparams_valid_t g_gpsparams_vld;
 #define SAVEPAR(param)\
     if (gpsvld->vld##param) {\
         if (gpsparams->param != g_gpsparams.param) {\
+            LOG_DBG ("***Param "#param" received value %d is different from stored value %d ***", gpsparams->param, g_gpsparams.param);\
             g_gpsparams.param = gpsparams->param;\
             g_gpsparams_vld.vld##param = 1;\
-            LOG_DBG ("***Param "#param" received value %d is different from stored value %d ***", gpsparams->param, g_gpsparams.param);\
         }\
         else {\
             g_gpsparams_vld.vld##param = 0;\
@@ -517,6 +517,7 @@ int GpsParamsSetValue(const char * name, int value)
     if (g_gpsparams_vld.vld##param) {\
         changed++;\
         sprintf(tmp,#param"=%d,", g_gpsparams.param);\
+        LOG_DBG("To silabs: %s", tmp);\
         int ln = strlen(tmp);\
         if (ln >= space) {\
             *ptr = 0;\

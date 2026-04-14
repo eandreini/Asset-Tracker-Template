@@ -998,8 +998,6 @@ void gmtrack_flush_cfgchg()
 {
     char buf[60];
     GpsParamsFlushValids(buf, 60, chg_queue_flush);
-	// After flushing the changes, clear the changed flags
-    GpsParamsClearChanged();
 
 }
 

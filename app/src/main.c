@@ -11,6 +11,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 #include <zephyr/sys/reboot.h>
+#include <zephyr/app_version.h>
 
 #include "app_common.h"
 #ifdef CONFIG_APP_INSPECT_SHELL
@@ -49,6 +50,17 @@ ZBUS_MSG_SUBSCRIBER_DEFINE(main_subscriber);
 
 extern gpsparams_t g_gpsparams;
 extern gpsparams_valid_t g_gpsparams_chgd;
+
+
+/* The two-level stringify converts it to a proper string literal
+ * to prevent interpreting the APP_BUILD_VERSION value as a number literal
+ *   _TOSTR(x)  →  "x"  (stringifies the literal text of x)
+ *   TOSTR(x)   →  expands x first, then stringifies the result  */
+#define _TOSTR(x) #x
+#define TOSTR(x)  _TOSTR(x)
+
+const char build_id[] __attribute__((used)) =
+	"@(#) " TOSTR(APP_BUILD_VERSION) " built:" __DATE__ " " __TIME__;
 
 
 enum timer_msg_type {
@@ -810,7 +822,7 @@ static void update_shadow_reported_section(const struct config_params *config,
 	}
 	if (config->storage_threshold_valid) {
 		LOG_DBG("Reported storage_threshold: %d", config->storage_threshold);
-	}	
+	}
 
 }
 
@@ -1835,6 +1847,13 @@ static void fota_rebooting_entry(void *o)
 
 int main(void)
 {
+
+	/* Volatile read forces the linker to keep build_id in the binary even
+	 * under --gc-sections. The value is discarded; the side-effect is
+	 * retaining the @(#) identification string for 'what' / 'strings'. */
+	// (void)(*(volatile const char *)build_id);
+	LOG_INF("Application started. Build ID: %s", build_id + 5);
+
 	int err;
 	int task_wdt_id;
 	const uint32_t wdt_timeout_ms = (CONFIG_APP_WATCHDOG_TIMEOUT_SECONDS * MSEC_PER_SEC);
@@ -1918,6 +1937,6 @@ void main_send_timer_expired_sample_data_message()
 
 		return;
 	}
-    
+
 }
 /* GM END*/

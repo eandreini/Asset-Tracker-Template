@@ -5,10 +5,11 @@
 #         -DOUTPUT_DIR=<destination_dir>
 #         -P rename_firmware.cmake
 #
-# Reads INPUT_FILE, computes its CRC32 (ISO 3309 / gzip polynomial 0xEDB88320)
-# and its size in bytes, then renames it to:
-#   TRN91_00000_<CRC32_8HEX_UPPERCASE>_<FILESIZE_DECIMAL>.bin
-# inside OUTPUT_DIR.
+# Reads INPUT_FILE, computes the CRC32 (ISO 3309 / gzip polynomial 0xEDB88320)
+# and size of the ORIGINAL (unpadded) content, then renames it to:
+#   TRN91_00000_<CRC32_8HEX_UPPERCASE>_<ORIGINAL_FILESIZE_DECIMAL>.bin
+# The on-disk file is then extended with trailing zero bytes to the next dword
+# (4-byte) boundary, but the filename always reflects the original payload.
 
 cmake_minimum_required(VERSION 3.21)
 
@@ -42,7 +43,7 @@ foreach(i RANGE 0 255)
     set(CRC32_TABLE_${i} ${_e})
 endforeach()
 
-# ── 3. Compute CRC32 ──────────────────────────────────────────────────────
+# ── 3. Compute CRC32 over the original (unpadded) content ─────────────────
 # Read the file as a hex string, then split into 2-char (1-byte) chunks via
 # REGEX MATCHALL — a single C-level pass, far faster than substring-in-loop.
 file(READ "${INPUT_FILE}" _hex HEX)
@@ -62,9 +63,9 @@ math(EXPR _crc_hex "${_crc}" OUTPUT_FORMAT HEXADECIMAL)  # e.g. "0xabcd1234"
 string(SUBSTRING "${_crc_hex}" 2 -1 _crc_str)            # strip "0x"
 string(TOUPPER "${_crc_str}" _crc_str)
 string(LENGTH  "${_crc_str}" _crc_len)
-math(EXPR _pad "8 - ${_crc_len}")
-if(_pad GREATER 0)
-    string(REPEAT "0" ${_pad} _zeros)
+math(EXPR _crc_pad "8 - ${_crc_len}")
+if(_crc_pad GREATER 0)
+    string(REPEAT "0" ${_crc_pad} _zeros)
     string(PREPEND _crc_str "${_zeros}")
 endif()
 
@@ -74,6 +75,27 @@ foreach(_f IN LISTS _stale)
     file(REMOVE "${_f}")
 endforeach()
 
+# CRC and file_size already reflect the padded content (see step 3).
 set(_output_name "TRN91_00000_${_crc_str}_${file_size}.bin")
 file(RENAME "${INPUT_FILE}" "${OUTPUT_DIR}/${_output_name}")
+
+# ── 6. Extend on-disk file to the next dword boundary with trailing zeros ──
+# CMake strings are null-terminated and cannot hold \x00 bytes, so we
+# delegate the zero-extension to truncate(1), available on Linux and macOS.
+# The filename already reflects the original (unpadded) size; only the
+# on-disk content is extended here.
+math(EXPR _remainder "${file_size} % 4")
+if(_remainder GREATER 0)
+    math(EXPR _pad         "4 - ${_remainder}")
+    math(EXPR _padded_size "${file_size} + ${_pad}")
+    execute_process(
+        COMMAND truncate -s ${_padded_size} "${OUTPUT_DIR}/${_output_name}"
+        RESULT_VARIABLE _truncate_result
+    )
+    if(NOT _truncate_result EQUAL 0)
+        message(FATAL_ERROR "truncate failed — could not pad ${_output_name} to ${_padded_size} bytes")
+    endif()
+    message(STATUS "Padded ${_pad} byte(s) → ${_padded_size} bytes on disk (dword-aligned)")
+endif()
+
 message(STATUS "Firmware artifact: ${_output_name}")

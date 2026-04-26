@@ -368,6 +368,8 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 			/* GM BEGIN - use specific configuration */
 			struct location_config cfg = {0};
 			location_config_defaults_set(&cfg, 0, NULL);
+
+			/* GM BEGIN - TODO: add config of cellular alt. */
 			cfg.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
 			// calculate timeout to allow requested number of fixes
 			cfg.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;

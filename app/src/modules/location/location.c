@@ -371,7 +371,7 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 
 			/* GM BEGIN - TODO: add config of cellular alt. */
 			cfg.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
-			// calculate timeout to allow requested number of fixes
+			cfg.methods->gnss.accuracy = LOCATION_ACCURACY_HIGH;
 			cfg.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;
 			cfg.methods->gnss.priority_mode = true;
 
@@ -403,6 +403,7 @@ static enum smf_state_result state_location_search_inactive_run(void *obj)
 
 			/* GM BEGIN - use specific configuration for GNSS */
 			config.methods->gnss.num_consecutive_fixes = g_gpsparams.GpsFixDelaySec;
+			config.methods->gnss.accuracy = LOCATION_ACCURACY_HIGH;
 			// calculate timeout to allow requested number of fixes
 			config.methods->gnss.timeout = (g_gpsparams.GpsFixTimeoutSec + g_gpsparams.GpsFixDelaySec) * 1000;
 			config.methods->gnss.priority_mode = true;

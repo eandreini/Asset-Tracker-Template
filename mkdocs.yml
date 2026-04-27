@@ -26,13 +26,12 @@ theme:
     - toc.follow
 
 
-extra_css:
-  - stylesheets/style.css
-
 copyright:
-  Copyright &copy; 2025
+  Copyright &copy; 2026
 
 markdown_extensions:
+  - pymdownx.arithmatex:
+      generic: true
   - abbr
   - admonition
   - attr_list
@@ -46,33 +45,44 @@ markdown_extensions:
       permalink: true
       toc_depth: 4
 
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+
 plugins:
   - macros
   - search
+
+ft_metadata:
+  ft:title: "Asset Tracker Template Add-on latest"
+  ft:clusterId: "asset-tracker-template-latest"
+  ft:locale: "en-US"
+  tags:
+    - "Asset Tracker Template Add-on latest"
 
 nav:
   - Overview: index.md
   - Getting started: common/getting_started.md
   - Architecture: common/architecture.md
   - Configuration: common/configuration.md
-  - Customization: common/customization.md
-  - Provisioning: common/provisioning.md
+  - Modifying the template: common/modifying.md
+  - Connecting: common/connecting.md
   - Location services: common/location_services.md
   - Achieving low power: common/low_power.md
   - Firmware Updates (FOTA): common/fota.md
   - Testing and CI setup: common/test_and_ci_setup.md
   - Tooling and Troubleshooting: common/tooling_troubleshooting.md
   - Known Issues: common/known_issues.md
-  - Application modules:
-    - Main module: modules/main.md
-    - Button module: modules/button.md
-    - Cloud module: modules/cloud.md
-    - Environmental module: modules/environmental.md
-    - FOTA module: modules/fota_module.md
-    - LED module: modules/led.md
-    - Location module: modules/location.md
-    - Network module: modules/network.md
-    - Power module: modules/power.md
-    - Storage module: modules/storage.md
+  - Modules:
+    - Main: modules/main.md
+    - Button: modules/button.md
+    - Cloud: modules/cloud.md
+    - Environmental: modules/environmental.md
+    - FOTA: modules/fota_module.md
+    - LED: modules/led.md
+    - Location: modules/location.md
+    - Network: modules/network.md
+    - Power: modules/power.md
+    - Storage: modules/storage.md
   - Release artifacts: common/release.md
   - Release notes: common/release_notes.md

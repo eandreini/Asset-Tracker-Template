@@ -260,6 +260,11 @@ struct main_state {
 	 */
 	uint32_t sample_start_time;
 
+	/* Used to fire the very first sample immediately on boot regardless
+	 * of sample_start_time.
+	 */
+	bool first_sample_pending;
+
 	/* Start time of the most recent cloud sync. This is used to calculate the correct
 	 * time when scheduling the next cloud sync trigger.
 	 */
@@ -473,6 +478,8 @@ static void poll_shadow_send(enum cloud_msg_type type)
 	if ((type != CLOUD_SHADOW_GET_DESIRED) &&
 	    (type != CLOUD_SHADOW_GET_DELTA)) {
 		LOG_ERR("Invalid event: %d", type);
+		SEND_FATAL_ERROR();
+
 		return;
 	}
 
@@ -504,27 +511,12 @@ static void poll_triggers_send(void)
 
 /* Common helpers for substates */
 
-static void sampling_begin_common(struct main_state *state_object,
-				  const struct smf_state *fallback_state)
+static void trigger_sampling(struct main_state *state_object)
 {
 	int err;
 	struct location_msg location_msg = {
 		.type = LOCATION_SEARCH_TRIGGER,
 	};
-	uint32_t current_time = k_uptime_seconds();
-	uint32_t time_elapsed = current_time - state_object->sample_start_time;
-
-	if ((state_object->sample_start_time > 0) &&
-	    (time_elapsed < state_object->sample_interval_sec) &&
-	    (state_object->chan != &button_chan)) {
-		LOG_DBG("Too soon to start sampling, time_elapsed: %d, interval: %d",
-			time_elapsed, state_object->sample_interval_sec);
-
-		/* Go back to waiting state to wait out the remainder of the interval */
-		smf_set_state(SMF_CTX(state_object), fallback_state);
-
-		return;
-	}
 
 #if defined(CONFIG_APP_LED)
 	/* Blue pattern to indicate sampling */
@@ -548,66 +540,7 @@ static void sampling_begin_common(struct main_state *state_object,
 #endif /* CONFIG_APP_LED */
 
 	state_object->sample_start_time = k_uptime_seconds();
-
-	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
-	if (err) {
-		LOG_ERR("Failed to publish location search trigger, error: %d", err);
-		SEND_FATAL_ERROR();
-
-		return;
-	}
-}
-
-static void waiting_entry_common(const struct main_state *state_object)
-{
-	uint32_t time_elapsed;
-	uint32_t time_remaining;
-
-	/* Reschedule the next sample trigger */
-
-	/* Special case: sample_start_time == 0 means first sample, trigger immediately */
-	if (state_object->sample_start_time == 0) {
-		time_remaining = 0;
-	} else {
-		time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
-
-		if (time_elapsed > state_object->sample_interval_sec) {
-			LOG_WRN("Sampling took longer than the interval, time_elapsed: %d, "
-				"interval: %d",
-				time_elapsed, state_object->sample_interval_sec);
-			time_remaining = 0;
-		} else {
-			time_remaining = state_object->sample_interval_sec - time_elapsed;
-		}
-	}
-
-	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
-	timer_sample_start(time_remaining);
-
-	/* Reschedule cloud sync trigger */
-	time_elapsed = k_uptime_seconds() - state_object->sync_start_time;
-	if (time_elapsed > state_object->update_interval_sec) {
-		LOG_WRN("Cloud sync took longer than the update interval, time_elapsed: %d, "
-			"interval: %d",
-			time_elapsed, state_object->update_interval_sec);
-		time_remaining = 0;
-	} else {
-		time_remaining = state_object->update_interval_sec - time_elapsed;
-	}
-	LOG_DBG("Next cloud sync trigger in %d seconds", time_remaining);
-	timer_send_data_start(time_remaining);
-}
-
-static void waiting_exit_common(void)
-{
-	timer_sample_stop();
-}
-
-static void sensor_triggers_send(void)
-{
-	int err;
-
-	(void)err;
+	state_object->first_sample_pending = false;
 
 #if defined(CONFIG_APP_POWER)
 	struct power_msg power_msg = {
@@ -636,6 +569,59 @@ static void sensor_triggers_send(void)
 		return;
 	}
 #endif /* CONFIG_APP_ENVIRONMENTAL */
+
+	err = zbus_chan_pub(&location_chan, &location_msg, PUB_TIMEOUT);
+	if (err) {
+		LOG_ERR("Failed to publish location search trigger, error: %d", err);
+		SEND_FATAL_ERROR();
+
+		return;
+	}
+}
+
+static void waiting_entry_common(const struct main_state *state_object)
+{
+	uint32_t time_elapsed;
+	uint32_t time_remaining;
+
+	/* Reschedule the next sample trigger */
+
+	if (state_object->first_sample_pending) {
+		time_remaining = 0;
+	} else {
+		time_elapsed = k_uptime_seconds() - state_object->sample_start_time;
+
+		if (time_elapsed > state_object->sample_interval_sec) {
+			LOG_WRN("Sampling took longer than the interval, time_elapsed: %d, "
+				"interval: %d",
+				time_elapsed, state_object->sample_interval_sec);
+			time_remaining = 0;
+		} else {
+			time_remaining = state_object->sample_interval_sec - time_elapsed;
+		}
+	}
+
+	LOG_DBG("Next sample trigger in %d seconds", time_remaining);
+
+	timer_sample_start(time_remaining);
+
+	/* Reschedule cloud sync trigger */
+	time_elapsed = k_uptime_seconds() - state_object->sync_start_time;
+	if (time_elapsed > state_object->update_interval_sec) {
+		LOG_WRN("Cloud sync took longer than the update interval, time_elapsed: %d, "
+			"interval: %d",
+			time_elapsed, state_object->update_interval_sec);
+		time_remaining = 0;
+	} else {
+		time_remaining = state_object->update_interval_sec - time_elapsed;
+	}
+	LOG_DBG("Next cloud sync trigger in %d seconds", time_remaining);
+	timer_send_data_start(time_remaining);
+}
+
+static void waiting_exit_common(void)
+{
+	timer_sample_stop();
 }
 
 static void storage_send_data(struct main_state *state_object)
@@ -801,6 +787,8 @@ static void update_shadow_reported_section(const struct config_params *config,
 					       &encoded_len);
 	if (err) {
 		LOG_ERR("encode_shadow_parameters_to_cbor, error: %d", err);
+		SEND_FATAL_ERROR();
+
 		return;
 	}
 
@@ -1334,7 +1322,7 @@ static void disconnected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object, &states[STATE_DISCONNECTED_WAITING]);
+	trigger_sampling(state_object);
 }
 
 static enum smf_state_result disconnected_sampling_run(void *o)
@@ -1345,7 +1333,6 @@ static enum smf_state_result disconnected_sampling_run(void *o)
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_SEARCH_DONE) {
-			sensor_triggers_send();
 			smf_set_state(SMF_CTX(state_object), &states[STATE_DISCONNECTED_WAITING]);
 
 			return SMF_EVENT_HANDLED;
@@ -1448,7 +1435,7 @@ static void connected_sampling_entry(void *o)
 	struct main_state *state_object = (struct main_state *)o;
 
 	LOG_DBG("%s", __func__);
-	sampling_begin_common(state_object, &states[STATE_CONNECTED_WAITING]);
+	trigger_sampling(state_object);
 }
 
 static enum smf_state_result connected_sampling_run(void *o)
@@ -1459,7 +1446,6 @@ static enum smf_state_result connected_sampling_run(void *o)
 		const struct location_msg *msg = (const struct location_msg *)state_object->msg_buf;
 
 		if (msg->type == LOCATION_SEARCH_DONE) {
-			sensor_triggers_send();
 			smf_set_state(SMF_CTX(state_object), &states[STATE_CONNECTED_WAITING]);
 			return SMF_EVENT_HANDLED;
 		}
@@ -1470,6 +1456,14 @@ static enum smf_state_result connected_sampling_run(void *o)
 		const struct button_msg *msg = (const struct button_msg *)state_object->msg_buf;
 
 		if (msg->type == BUTTON_PRESS_SHORT) {
+			return SMF_EVENT_HANDLED;
+		}
+	}
+
+	if (state_object->chan == &storage_chan) {
+		const struct storage_msg *msg = (const struct storage_msg *)state_object->msg_buf;
+
+		if (msg->type == STORAGE_THRESHOLD_REACHED) {
 			return SMF_EVENT_HANDLED;
 		}
 	}
@@ -1869,6 +1863,7 @@ int main(void)
 	main_state.sample_interval_sec = CONFIG_APP_SAMPLING_INTERVAL_SECONDS;
 	main_state.update_interval_sec = CONFIG_APP_CLOUD_UPDATE_INTERVAL_SECONDS;
 	main_state.storage_threshold = CONFIG_APP_STORAGE_INITIAL_THRESHOLD;
+	main_state.first_sample_pending = true;
 
 	LOG_DBG("Main has started - Ota Test 1");
 

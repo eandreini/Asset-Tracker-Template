@@ -8,42 +8,11 @@ For more knowledge on debugging and troubleshooting [nRF Connect SDK](https://gi
 - [nRF Connect SDK Debugging Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/test_and_optimize/debugging.html)
 - [Zephyr Debugging Guide](https://docs.zephyrproject.org/latest/develop/debug/index.html)
 
-<div class="hidden-content">
-
-## Table of Contents
-
-- [Shell Commands](#shell-commands)
-  - [Available Commands](#available-commands)
-  - [Shell Command Examples](#shell-command-examples)
-    - [Cloud Publishing](#cloud-publishing)
-    - [Network disconnect](#network-disconnect)
-    - [AT Command Execution](#at-command-execution)
-- [Debugging Tools](#debugging-tools)
-  - [Low Power Profiling](#low-power-profiling)
-  - [GDB Debugging](#gdb-debugging)
-  - [SEGGER SystemView](#segger-systemview)
-    - [Configuration](#configuration)
-  - [Thread Analysis](#thread-analysis)
-  - [Hardfaults](#hardfaults)
-  - [State Inspection Script](#state-inspection-script)
-- [Memfault Remote Debugging](#memfault-remote-debugging)
-  - [When to Use Memfault](#when-to-use-memfault)
-  - [Prerequisites](#prerequisites)
-  - [Test shell commands](#test-shell-commands)
-- [Modem Tracing](#modem-tracing)
-  - [UART Tracing](#uart-tracing)
-  - [RTT Tracing](#rtt-tracing)
-  - [Dumping modem traces over UART after capture](#dumping-modem-traces-over-uart-after-capture)
-  - [Application logs and modem traces over RTT - Parallel capture](#application-logs-and-modem-traces-over-rtt---parallel-capture)
-- [Common Issues and Solutions](#common-issues-and-solutions)
-
-</div>
-
 ## Shell Commands
 
 The template provides several shell commands for controlling and monitoring device behavior. Connect to the device's UART interface using either:
 
-- [Serial terminal app](https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) form nRF Connect for Desktop.
+- [Serial terminal app](https://docs.nordicsemi.com/bundle/nrf-connect-serial-terminal/page/index.html) from nRF Connect for Desktop.
 - Your preferred terminal application (for example, `putty`, `minicom`, `terraterm`).
 
 ### Available Commands
@@ -110,8 +79,7 @@ uart:~$ att_cloud provision
 [00:00:45.290,954] <wrn> cloud: Treating as provisioning finished
 ```
 
-When the provisioning command is called, the device will connect to the provisioning endpoint and check if there are any pending commands for the device
-and execute them if any. You can use it to reprovision the device for development purposes and when it is desired to swap out the certificates used in the CoAP connection.
+When the provisioning command is called, the device connects to the provisioning endpoint, checks for any pending commands for the device, and executes them if present. Use this command to reprovision the device during development, or when you want to swap out the credentials used in the CoAP connection.
 
 #### Network disconnect
 
@@ -193,14 +161,13 @@ CONFIG_TRACING=y
 CONFIG_SEGGER_SYSTEMVIEW=y
 ```
 
-And build or flash the template for the respective board.
-Or build with the necessary configurations passed in via the west build command:
+Then build and flash the template for the target board, or pass the configurations directly on the `west build` command line:
 
 ```bash
 west build -p -b <board> -- -DCONFIG_TRACING=y -DCONFIG_SEGGER_SYSTEMVIEW=y
 ```
 
-Or RTT tracing snippet:
+Alternatively, use the RTT tracing snippet:
 
 ```bash
 west build -p -b <board> -- -Dapp_SNIPPET=rtt-tracing
@@ -277,7 +244,7 @@ For more information, see [Zephyr Thread Analyzer](https://docs.zephyrproject.or
 
 ### Hardfaults
 
-When a hardfault occurs, you can check the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers in order to find the offending instruction.
+When a hardfault occurs, you can check the [LR and PC](https://stackoverflow.com/questions/8236959/what-are-sp-stack-and-lr-in-arm) registers to find the offending instruction.
 For example, in this fault frame the PC is `0x00002681`, thread is `main` and type of error is a stack overflow.
 So in this case, there is no need to look up the PC or LR to understand the issue.
 The main stack size needs to be increased.
@@ -303,9 +270,9 @@ For more information on how to debug hardfaults, see [Memfault Cortex Hardfault 
 [00:00:00.897,583] <err> os: Halting system
 ```
 
-However, if the fault source is more ambiguous it might be needed to use `Address-2-Line` to lookup the offending function.
-In this example, the LR address is used to find the function address stored in the LR register.
-This function is the parent in the callstack of the address the PC points to.
+However, if the fault source is more ambiguous, you might need to use `addr2line` to look up the offending function.
+In this example, the LR address is used to find the function stored in the LR register.
+That function is the caller in the callstack of the address the PC points to.
 
 ```bash
 <path-to-zephyr-sdk>/arm-zephyr-eabi/bin/arm-zephyr-eabi-addr2line -e build/app/zephyr/zephyr.elf 0x0007b6f7
@@ -353,7 +320,7 @@ Here is some context for the exception:
     SFAR: 0x00000000
 ```
 
-Here we can again lookup the PC and LR in the non-Secure image to find the offending function:
+Here we can again look up the PC and LR in the non-secure image to find the offending function:
 
 ```bash
 ~/dev/projects/att/Asset-Tracker-Template/app add-sensor-docs *18 !5 ❯ a2l 0x0003D7B6
@@ -366,7 +333,7 @@ Secure faults will display:
 - Non-secure SP and LR registers.
 - Violation details.
 
-For more information, refer the following documentation:
+For more information, refer to the following documentation:
 
 - [TF-M Documentation](https://docs.nordicsemi.com/bundle/ncs-latest/page/tfm/introduction/readme.html#repositories)
 - [nRF Connect SDK TF-M Guide](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/security/tfm/index.html)
@@ -379,7 +346,7 @@ For more information, refer the following documentation:
 > CONFIG_RESET_ON_FATAL_ERROR=n
 > ```
 
-When enabling immediate logging, it might be necessary to increase the stack size of certain threads due to logging being executed in context which increases stack usage.
+When enabling immediate logging, it might be necessary to increase the stack size of certain threads, because log messages are emitted in the calling thread's context, which increases stack usage.
 
 ### State Inspection Script
 
@@ -466,9 +433,9 @@ backoff_time        : 60 (0x3C)
 ## Memfault Remote Debugging
 
 The template supports remote debugging using [Memfault](https://memfault.com/).
-Remote debugging enables the device to send metrics suchs as LTE, GNSS and memory statistics as well as coredump captures on crashes to analyse problems across single or fleet of devices once they occur.
+Remote debugging enables the device to send metrics such as LTE, GNSS, and memory statistics, as well as coredump captures on crashes, to analyse problems across single devices or a fleet of devices once they occur.
 
-For more information see the following documenation:
+For more information, see the following documentation:
 
 - [Memfault Sample](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/samples/debug/memfault/README.html)
 - [Memfault Integration](https://docs.nordicsemi.com/bundle/ncs-latest/page/nrf/libraries/debug/memfault_ncs.html)
@@ -514,9 +481,8 @@ Memfault is a device observability platform that complements traditional debuggi
 
 ### Prerequisites
 
-1. Register at [Memfault](https://app.memfault.com/register-nordic)
+1. Register at [nRF Cloud](https://app.nrfcloud.com/#/register)
 2. Complete the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) exercise.
-3. Memfault project key retrieved during the aforementioned steps.
 
 To build the application with support for Memfault, you need to build with the Memfault overlay `overlay-memfault.conf`. If you want to capture and send modem traces to Memfault on coredumps, you can include the overlay `overlay-publish-modem-traces-to-memfault.conf`.
 
@@ -525,20 +491,21 @@ To build the application with support for Memfault, you need to build with the M
 > This is especially true when using the modem trace upload feature, which can send upwards of 1 MB of modem trace data in case of application crashes.
 > Consider this when planning your data usage and costs.
 
-For detailed build instructions and how to configure the project key, refer to the [Getting Started Guide](getting_started.md) where build instructions for building with Memfault are given.
 To build with all available Memfault functionality:
 
 ```bash
-west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf" -DCONFIG_MEMFAULT_NCS_PROJECT_KEY=\"<project-key>\"
+west build -p -b <board> -- -DEXTRA_CONF_FILE="overlay-memfault.conf;overlay-upload-modem-traces-to-memfault.conf"
 ```
+
+> Note: By default, Memfault data is routed via CoAP to the Memfault project linked to your provisioned nRF Cloud account. To override this, set `CONFIG_MEMFAULT_NCS_PROJECT_KEY="YOUR_PROJECT_KEY"`.
 
 Screen capture from a coredump received in Memfault:
 
 ![Memfault UI](../images/memfault.png)
 
 > [!IMPORTANT]
-> In order to properly use Memfault and be able to decode metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application.
-> This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) developer Academy excersise.
+> To properly use Memfault and decode the metrics and coredumps sent from the device, you need to upload the ELF file located in the build folder of the template once you have built the application.
+> This is covered in the [Remote Debugging with Memfault](https://academy.nordicsemi.com/courses/nrf-connect-sdk-intermediate/lessons/lesson-2-debugging/topic/exercise-4-remote-debugging-with-memfault/) Developer Academy exercise.
 
 #### Test shell commands
 
@@ -573,14 +540,14 @@ nrfutil trace lte --input-serialport /dev/tty.usbmodem141405 --output-pcapng tra
 ⠒ Saving trace to trace.pcapng (11952 bytes)
 ```
 
-If not traces are captured it might be needed to reset the device.
-After capturing the trace it can be opened in wireshark:
+If no traces are captured, it might be necessary to reset the device.
+After capturing, the trace can be opened in Wireshark:
 
 ```bash
 wireshark trace.pcapng
 ```
 
-You can also do live tracing by piping the traces to wireshark:
+You can also do live tracing by piping the traces to Wireshark:
 
 ```bash
 nrfutil trace lte --input-serialport /dev/tty.usbmodem141405 --output-pcapng trace.pcapng --output-wireshark wireshark
@@ -716,4 +683,4 @@ For more information, see [nRF Connect SDK Modem Tracing](https://docs.nordicsem
 
 ## Common Issues and Solutions
 
-If you are not able to resolve the issue with the tools and instructions given in this documentation, it's recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in [Nordic's support portal](https://devzone.nordicsemi.com/).
+If you are not able to resolve the issue with the tools and instructions given in this documentation, it is recommended to create an issue in the [template repository](https://github.com/nrfconnect/Asset-Tracker-Template/issues) or register a support ticket in [Nordic's support portal](https://devzone.nordicsemi.com/).

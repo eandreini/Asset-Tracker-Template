@@ -30,21 +30,21 @@ The location module publishes and receives messages over the zbus channel `locat
 
 ### Input messages
 
-- `LOCATION_SEARCH_TRIGGER`:
+- **LOCATION_SEARCH_TRIGGER:**
   Triggers a location search request. The module will attempt to get the current location using configured methods.
 
 ### Output messages
 
-- `LOCATION_SEARCH_STARTED`:
+- **LOCATION_SEARCH_STARTED:**
   Indicates that a location search has been initiated.
 
-- `LOCATION_SEARCH_DONE`:
+- **LOCATION_SEARCH_DONE:**
   Indicates that a location search has completed (successfully or with error/timeout).
 
-- `LOCATION_CLOUD_REQUEST`:
+- **LOCATION_CLOUD_REQUEST:**
   Contains cellular neighbor cell and/or Wi-Fi access point information that should be sent to cloud services for location resolution.
 
-- `LOCATION_AGNSS_REQUEST`:
+- **LOCATION_AGNSS_REQUEST:**
   Indicates that A-GNSS assistance data is needed for GNSS positioning.
 
 The message types used by the location module are defined in `location.h`:
@@ -61,7 +61,7 @@ enum location_msg_type {
 
 ## Configurations
 
-Several Kconfig options in `Kconfig.location` control this module's behavior. The following configuration parameters are associated with this module::
+Several Kconfig options in `Kconfig.location` control this module's behavior. The following configuration parameters are associated with this module:
 
 - **CONFIG_APP_LOCATION:**
   Enables the location module. Automatically selected if **CONFIG_LOCATION** is enabled.
@@ -84,3 +84,56 @@ Several Kconfig options in `Kconfig.location` control this module's behavior. Th
   Must be smaller than the value set in the **CONFIG_APP_LOCATION_WATCHDOG_TIMEOUT_SECONDS** Kconfig option.
 
 For more details on these configurations, refer to `Kconfig.location`.
+
+## Location method priority
+
+### Default method order
+
+The board configurations (`thingy91x_nrf9151_ns.conf`,`nrf9151dk_nrf9151.conf`) set
+the following default method priority order:
+
+**Thingy91x** :
+
+| Priority | Method | Kconfig option |
+| --- | --- | --- |
+| 1st | GNSS | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS` |
+| 2nd | Wi-Fi | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_WIFI` |
+| 3rd | Cellular | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_THIRD_CELLULAR` |
+
+**nRF9151 DK**:
+
+| Priority | Method | Kconfig option |
+| --- | --- | --- |
+| 1st | GNSS | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_GNSS` |
+| 2nd | Cellular | `CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_CELLULAR` |
+
+See the
+[nRF Cloud Location Services overview](https://docs.nordicsemi.com/bundle/nrf-cloud/page/LocationServices/LSOverview.html)
+for a description of each method's accuracy, latency, and power
+characteristics.
+
+### Wi-Fi and cellular combining
+
+When Wi-Fi and cellular methods are adjacent in the method list, the
+Location library automatically combines them into a single
+`LOCATION_METHOD_WIFI_CELLULAR` cloud request.
+
+### Changing the method order
+
+The method priority is controlled by the following Kconfig options in
+the board configuration file or `prj.conf`:
+
+- **`CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_FIRST_*`**
+- **`CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_SECOND_*`**
+- **`CONFIG_LOCATION_REQUEST_DEFAULT_METHOD_THIRD_*`**
+
+## nRF Cloud location service usage
+
+Wi-Fi and cellular location requests, including combined
+`LOCATION_METHOD_WIFI_CELLULAR` requests, are resolved by nRF Cloud and
+count toward the monthly location request quota. GNSS resolves position
+on-device and does not consume cloud requests.
+
+The free Developer plan on nRF Cloud includes 1,500 location requests
+per month. See the [nRF Cloud pricing page](https://nrfcloud.com/pricing/)
+for current plan limits.

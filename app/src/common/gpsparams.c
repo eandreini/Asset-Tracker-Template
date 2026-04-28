@@ -48,12 +48,12 @@ void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_valid_t 
 
     SAVEPAR(LteMinStrenght);
     SAVEPAR(LteTimeoutSec);
-    SAVEPAR(LteOnDemandFreqMin);
-    SAVEPAR(LteOnDemandOffsetMin);
+    SAVEPAR(LteTimeoutMaxRetry);
+    SAVEPAR(LteTimeoutPurgeMins);
     SAVEPAR(LteConnOnNoFix);
     SAVEPAR(GpsAidIntervalH);
     SAVEPAR(GpsAidNumDays);
-    SAVEPAR(GpsAidOnlyM1);
+    SAVEPAR(LteTimeoutDouble);
 
     SAVEPAR(Ts1Range);
     SAVEPAR(Ts1Dow);
@@ -111,12 +111,12 @@ void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
 
     LOADPAR(LteMinStrenght);
     LOADPAR(LteTimeoutSec);
-    LOADPAR(LteOnDemandFreqMin);
-    LOADPAR(LteOnDemandOffsetMin);
+    LOADPAR(LteTimeoutMaxRetry);
+    LOADPAR(LteTimeoutPurgeMins);
     LOADPAR(LteConnOnNoFix);
     LOADPAR(GpsAidIntervalH);
     LOADPAR(GpsAidNumDays);
-    LOADPAR(GpsAidOnlyM1);
+    LOADPAR(LteTimeoutDouble);
 
     LOADPAR(Ts1Range);
     LOADPAR(Ts1Dow);
@@ -193,12 +193,12 @@ void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t *
     
     CBOR2PAR(LMS, LteMinStrenght);
     CBOR2PAR(LTS, LteTimeoutSec);
-    CBOR2PAR(LODFM, LteOnDemandFreqMin);
-    CBOR2PAR(LODOM, LteOnDemandOffsetMin);
+    CBOR2PAR(LODFM, LteTimeoutMaxRetry);
+    CBOR2PAR(LODOM, LteTimeoutPurgeMins);
     CBOR2PAR(LCONF, LteConnOnNoFix);
     CBOR2PAR(GAIH, GpsAidIntervalH);
     CBOR2PAR(GAIND, GpsAidNumDays);
-    CBOR2PAR(GAOM, GpsAidOnlyM1);
+    CBOR2PAR(GAOM, LteTimeoutDouble);
     
     CBOR2PAR(TR1, Ts1Range);
     CBOR2PAR(TD1, Ts1Dow);
@@ -268,12 +268,12 @@ void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_valid
     
     PAR2CBOR(LteMinStrenght, LMS);
     PAR2CBOR(LteTimeoutSec, LTS);
-    PAR2CBOR(LteOnDemandFreqMin, LODFM);
-    PAR2CBOR(LteOnDemandOffsetMin, LODOM);
+    PAR2CBOR(LteTimeoutMaxRetry, LODFM);
+    PAR2CBOR(LteTimeoutPurgeMins, LODOM);
     PAR2CBOR(LteConnOnNoFix, LCONF);
     PAR2CBOR(GpsAidIntervalH, GAIH);
     PAR2CBOR(GpsAidNumDays, GAIND);
-    PAR2CBOR(GpsAidOnlyM1, GAOM);
+    PAR2CBOR(LteTimeoutDouble, GAOM);
     
     PAR2CBOR(Ts1Range, TR1);
     PAR2CBOR(Ts1Dow, TD1);
@@ -333,12 +333,12 @@ void GpsParamsDump(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsv
 
     DUMP(LteMinStrenght, "           ");
     DUMP(LteTimeoutSec, "            ");
-    DUMP(LteOnDemandFreqMin, "       ");
-    DUMP(LteOnDemandOffsetMin, "     ");
+    DUMP(LteTimeoutMaxRetry, "       ");
+    DUMP(LteTimeoutPurgeMins, "      ");
     DUMP(LteConnOnNoFix, "           ");
     DUMP(GpsAidIntervalH, "          ");
     DUMP(GpsAidNumDays, "            ");
-    DUMP(GpsAidOnlyM1, "             ");
+    DUMP(LteTimeoutDouble, "         ");
     printf("\n");
 
     DUMP(Ts1Range, "                 ");
@@ -399,12 +399,12 @@ void GpsParamsTestFill(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
 
     SET(LteMinStrenght, 110);
     SET(LteTimeoutSec, 10);
-    SET(LteOnDemandFreqMin, 0);
-    SET(LteOnDemandOffsetMin, 0);
+    SET(LteTimeoutMaxRetry, 0);
+    SET(LteTimeoutPurgeMins, 0);
     SET(LteConnOnNoFix, 1);
     SET(GpsAidIntervalH, 168);
     SET(GpsAidNumDays, 3);
-    SET(GpsAidOnlyM1, 0);
+    SET(LteTimeoutDouble, 0);
 
     SET(Ts1Range, 0);   
     SET(Ts1Dow, 0);     
@@ -468,12 +468,12 @@ int GpsParamsSetValue(const char * name, int value)
 
     CHECK_PAR(name, LteMinStrenght, value)
     CHECK_PAR(name, LteTimeoutSec, value)
-    CHECK_PAR(name, LteOnDemandFreqMin, value)
-    CHECK_PAR(name, LteOnDemandOffsetMin, value)
+    CHECK_PAR(name, LteTimeoutMaxRetry, value)
+    CHECK_PAR(name, LteTimeoutPurgeMins, value)
     CHECK_PAR(name, LteConnOnNoFix, value)
     CHECK_PAR(name, GpsAidIntervalH, value)
     CHECK_PAR(name, GpsAidNumDays, value)
-    CHECK_PAR(name, GpsAidOnlyM1, value)
+    CHECK_PAR(name, LteTimeoutDouble, value)
 
     CHECK_PAR(name, Ts1Range, value)
     CHECK_PAR(name, Ts1Dow, value)
@@ -556,12 +556,12 @@ int GpsParamsFlushValids(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
 
     GET_CHANGED(LteMinStrenght)
     GET_CHANGED(LteTimeoutSec)
-    GET_CHANGED(LteOnDemandFreqMin)
-    GET_CHANGED(LteOnDemandOffsetMin)
+    GET_CHANGED(LteTimeoutMaxRetry)
+    GET_CHANGED(LteTimeoutPurgeMins)
     GET_CHANGED(LteConnOnNoFix)
     GET_CHANGED(GpsAidIntervalH)
     GET_CHANGED(GpsAidNumDays)
-    GET_CHANGED(GpsAidOnlyM1)
+    GET_CHANGED(LteTimeoutDouble)
 
     GET_CHANGED(Ts1Range)
     GET_CHANGED(Ts1Dow)
@@ -621,12 +621,12 @@ int GpsParamsHasValids(const gpsparams_valid_t * gpsvld)
 
     IS_CHANGED(LteMinStrenght)
     IS_CHANGED(LteTimeoutSec)
-    IS_CHANGED(LteOnDemandFreqMin)
-    IS_CHANGED(LteOnDemandOffsetMin)
+    IS_CHANGED(LteTimeoutMaxRetry)
+    IS_CHANGED(LteTimeoutPurgeMins)
     IS_CHANGED(LteConnOnNoFix)
     IS_CHANGED(GpsAidIntervalH)
     IS_CHANGED(GpsAidNumDays)
-    IS_CHANGED(GpsAidOnlyM1)
+    IS_CHANGED(LteTimeoutDouble)
 
     IS_CHANGED(Ts1Range)
     IS_CHANGED(Ts1Dow)

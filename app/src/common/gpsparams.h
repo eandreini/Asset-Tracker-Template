@@ -21,12 +21,12 @@ typedef struct {
 
     uint8_t LteMinStrenght;
     uint8_t LteTimeoutSec;
-    uint16_t LteOnDemandFreqMin;
-    uint16_t LteOnDemandOffsetMin;
+    uint16_t LteTimeoutMaxRetry;
+    uint16_t LteTimeoutPurgeMins;
     uint8_t LteConnOnNoFix;
     uint8_t GpsAidIntervalH;
     uint8_t GpsAidNumDays;
-    uint8_t GpsAidOnlyM1;
+    uint8_t LteTimeoutDouble;
 
     uint32_t Ts1Range;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
     uint32_t Ts2Range;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
@@ -75,12 +75,12 @@ typedef struct {
 
     uint32_t vldLteMinStrenght : 1;
     uint32_t vldLteTimeoutSec : 1;
-    uint32_t vldLteOnDemandFreqMin : 1;
-    uint32_t vldLteOnDemandOffsetMin : 1;
+    uint32_t vldLteTimeoutMaxRetry : 1;
+    uint32_t vldLteTimeoutPurgeMins : 1;
     uint32_t vldLteConnOnNoFix : 1;
     uint32_t vldGpsAidIntervalH : 1;
     uint32_t vldGpsAidNumDays : 1;
-    uint32_t vldGpsAidOnlyM1 : 1;
+    uint32_t vldLteTimeoutDouble : 1;
 
     uint32_t vldTs1Range : 1;    // byte array hex HHMM from HHMM to in hex (ie 0x10452030)
     uint32_t vldTs1Dow : 1;        // day of week bitmask (bit 0 sun, bit 1 mon etc.)

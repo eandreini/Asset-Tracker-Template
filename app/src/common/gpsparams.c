@@ -40,13 +40,13 @@ void GpsParamsSetChanged(const gpsparams_t * gpsparams, const gpsparams_valid_t 
     SAVEPAR(NotifyPresenceLost);
     SAVEPAR(NotifyAccMove);
     SAVEPAR(NotifySledEvents);
-    SAVEPAR(CoaleshTimeMin);
+    SAVEPAR(CoaleshTimeIdleMin);
 
     SAVEPAR(MinGpsStrength);
     SAVEPAR(GpsFixTimeoutSec);
     SAVEPAR(GpsFixDelaySec);
 
-    SAVEPAR(LteMinStrenght);
+    SAVEPAR(CoaleshTimeActiveMin);
     SAVEPAR(LteTimeoutSec);
     SAVEPAR(LteTimeoutMaxRetry);
     SAVEPAR(LteTimeoutPurgeMins);
@@ -103,13 +103,13 @@ void GpsParamsGetChanged(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
     LOADPAR(NotifyPresenceLost);
     LOADPAR(NotifyAccMove);
     LOADPAR(NotifySledEvents);
-    LOADPAR(CoaleshTimeMin);
+    LOADPAR(CoaleshTimeIdleMin);
 
     LOADPAR(MinGpsStrength);
     LOADPAR(GpsFixTimeoutSec);
     LOADPAR(GpsFixDelaySec);
 
-    LOADPAR(LteMinStrenght);
+    LOADPAR(CoaleshTimeActiveMin);
     LOADPAR(LteTimeoutSec);
     LOADPAR(LteTimeoutMaxRetry);
     LOADPAR(LteTimeoutPurgeMins);
@@ -185,13 +185,13 @@ void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t *
     CBOR2PAR(NPS, NotifyPresenceLost);
     CBOR2PAR(NAM, NotifyAccMove);
     CBOR2PAR(NSE, NotifySledEvents);
-    CBOR2PAR(CTM, CoaleshTimeMin);
+    CBOR2PAR(CTM, CoaleshTimeIdleMin);
     
     CBOR2PAR(MGS, MinGpsStrength);
     CBOR2PAR(GFTS, GpsFixTimeoutSec);
     CBOR2PAR(GFDS, GpsFixDelaySec);
     
-    CBOR2PAR(LMS, LteMinStrenght);
+    CBOR2PAR(LMS, CoaleshTimeActiveMin);
     CBOR2PAR(LTS, LteTimeoutSec);
     CBOR2PAR(LODFM, LteTimeoutMaxRetry);
     CBOR2PAR(LODOM, LteTimeoutPurgeMins);
@@ -260,13 +260,13 @@ void GpsParamsEncodeToCbor (const gpsparams_t * gpsparams, const gpsparams_valid
     PAR2CBOR(NotifyPresenceLost, NPS);
     PAR2CBOR(NotifyAccMove, NAM);
     PAR2CBOR(NotifySledEvents, NSE);
-    PAR2CBOR(CoaleshTimeMin, CTM);
+    PAR2CBOR(CoaleshTimeIdleMin, CTM);
             
     PAR2CBOR(MinGpsStrength, MGS);
     PAR2CBOR(GpsFixTimeoutSec, GFTS);
     PAR2CBOR(GpsFixDelaySec, GFDS);
     
-    PAR2CBOR(LteMinStrenght, LMS);
+    PAR2CBOR(CoaleshTimeActiveMin, LMS);
     PAR2CBOR(LteTimeoutSec, LTS);
     PAR2CBOR(LteTimeoutMaxRetry, LODFM);
     PAR2CBOR(LteTimeoutPurgeMins, LODOM);
@@ -323,7 +323,7 @@ void GpsParamsDump(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsv
     DUMP(NotifyPresenceLost, "       ");
     DUMP(NotifyAccMove, "            ");
     DUMP(NotifySledEvents, "         ");
-    DUMP(CoaleshTimeMin, "           ");
+    DUMP(CoaleshTimeIdleMin, "       ");
     printf("\n");
 
     DUMP(MinGpsStrength, "           ");
@@ -331,7 +331,7 @@ void GpsParamsDump(const gpsparams_t * gpsparams, const gpsparams_valid_t * gpsv
     DUMP(GpsFixDelaySec, "           ");
     printf("\n");
 
-    DUMP(LteMinStrenght, "           ");
+    DUMP(CoaleshTimeActiveMin, "     ");
     DUMP(LteTimeoutSec, "            ");
     DUMP(LteTimeoutMaxRetry, "       ");
     DUMP(LteTimeoutPurgeMins, "      ");
@@ -391,13 +391,13 @@ void GpsParamsTestFill(gpsparams_t * gpsparams, gpsparams_valid_t * gpsvld)
     SET(NotifyPresenceLost, 0);
     SET(NotifyAccMove, 0);
     SET(NotifySledEvents, 0);
-    SET(CoaleshTimeMin, 0);
+    SET(CoaleshTimeIdleMin, 0);
 
     SET(MinGpsStrength, 35);
     SET(GpsFixTimeoutSec, 10);
     SET(GpsFixDelaySec, 7);
 
-    SET(LteMinStrenght, 110);
+    SET(CoaleshTimeActiveMin, 15);
     SET(LteTimeoutSec, 10);
     SET(LteTimeoutMaxRetry, 0);
     SET(LteTimeoutPurgeMins, 0);
@@ -460,13 +460,13 @@ int GpsParamsSetValue(const char * name, int value)
     CHECK_PAR(name, NotifyPresenceLost, value)
     CHECK_PAR(name, NotifyAccMove, value)
     CHECK_PAR(name, NotifySledEvents, value)
-    CHECK_PAR(name, CoaleshTimeMin, value)
+    CHECK_PAR(name, CoaleshTimeIdleMin, value)
 
     CHECK_PAR(name, MinGpsStrength, value)
     CHECK_PAR(name, GpsFixTimeoutSec, value)
     CHECK_PAR(name, GpsFixDelaySec, value)
 
-    CHECK_PAR(name, LteMinStrenght, value)
+    CHECK_PAR(name, CoaleshTimeActiveMin, value)
     CHECK_PAR(name, LteTimeoutSec, value)
     CHECK_PAR(name, LteTimeoutMaxRetry, value)
     CHECK_PAR(name, LteTimeoutPurgeMins, value)
@@ -548,13 +548,13 @@ int GpsParamsFlushValids(char * buffer, int maxlen, gpsparams_flush_cb_t cb)
     GET_CHANGED(NotifyPresenceLost)
     GET_CHANGED(NotifyAccMove)
     GET_CHANGED(NotifySledEvents)
-    GET_CHANGED(CoaleshTimeMin)
+    GET_CHANGED(CoaleshTimeIdleMin)
 
     GET_CHANGED(MinGpsStrength)
     GET_CHANGED(GpsFixTimeoutSec)
     GET_CHANGED(GpsFixDelaySec)
 
-    GET_CHANGED(LteMinStrenght)
+    GET_CHANGED(CoaleshTimeActiveMin)
     GET_CHANGED(LteTimeoutSec)
     GET_CHANGED(LteTimeoutMaxRetry)
     GET_CHANGED(LteTimeoutPurgeMins)
@@ -613,13 +613,13 @@ int GpsParamsHasValids(const gpsparams_valid_t * gpsvld)
     IS_CHANGED(NotifyPresenceLost)
     IS_CHANGED(NotifyAccMove)
     IS_CHANGED(NotifySledEvents)
-    IS_CHANGED(CoaleshTimeMin)
+    IS_CHANGED(CoaleshTimeIdleMin)
 
     IS_CHANGED(MinGpsStrength)
     IS_CHANGED(GpsFixTimeoutSec)
     IS_CHANGED(GpsFixDelaySec)
 
-    IS_CHANGED(LteMinStrenght)
+    IS_CHANGED(CoaleshTimeActiveMin)
     IS_CHANGED(LteTimeoutSec)
     IS_CHANGED(LteTimeoutMaxRetry)
     IS_CHANGED(LteTimeoutPurgeMins)

@@ -12,14 +12,14 @@ typedef struct {
     uint8_t NotifyPresenceLost;
     uint8_t NotifyAccMove;
     uint8_t NotifySledEvents;
-    uint8_t CoaleshTimeMin;
+    uint8_t CoaleshTimeIdleMin;
 
     uint8_t MinGpsStrength;
     uint8_t GpsFixTimeoutSec;
     uint8_t GpsFixDelaySec;
     uint8_t dummy1;
 
-    uint8_t LteMinStrenght;
+    uint8_t CoaleshTimeActiveMin;
     uint8_t LteTimeoutSec;
     uint16_t LteTimeoutMaxRetry;
     uint16_t LteTimeoutPurgeMins;
@@ -67,13 +67,13 @@ typedef struct {
     uint32_t vldNotifyPresenceLost : 1;
     uint32_t vldNotifyAccMove : 1;
     uint32_t vldNotifySledEvents : 1;
-    uint32_t vldCoaleshTimeMin : 1;
+    uint32_t vldCoaleshTimeIdleMin : 1;
 
     uint32_t vldMinGpsStrength : 1;
     uint32_t vldGpsFixTimeoutSec : 1;
     uint32_t vldGpsFixDelaySec : 1;
 
-    uint32_t vldLteMinStrenght : 1;
+    uint32_t vldCoaleshTimeActiveMin : 1;
     uint32_t vldLteTimeoutSec : 1;
     uint32_t vldLteTimeoutMaxRetry : 1;
     uint32_t vldLteTimeoutPurgeMins : 1;

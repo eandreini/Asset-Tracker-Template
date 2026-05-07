@@ -16,6 +16,8 @@
 #include <zephyr/pm/device.h>
 #include <zephyr/pm/device_runtime.h>
 #include <zephyr/pm/pm.h>
+#include <net/nrf_cloud_coap.h>
+
 
 #include "network.h"
 #include "button.h"
@@ -462,6 +464,13 @@ static int cmd_dcdc(const struct shell *sh, size_t argc, char **argv)
     return 1;
 }
 
+static int cmd_sendjson(const struct shell *sh, size_t argc, char **argv)
+{
+    const char *custom_msg = "{\"appId\":\"MYAPP\",\"messageType\":\"DATA\",\"data\":{\"val\":1}}";
+    nrf_cloud_coap_json_message_send(custom_msg, false, false);
+    return 1;
+}
+
 
 
 SHELL_CMD_REGISTER(led, NULL, "Turn led on and off", cmd_led);
@@ -481,3 +490,6 @@ SHELL_CMD_REGISTER(send_data, NULL, "Send data to cloud", cmd_send_data);
 SHELL_CMD_REGISTER(sample_data, NULL, "Sample data", cmd_sample_data);
 SHELL_CMD_REGISTER(nw_msg, NULL, "Send network message", cmd_network_msg);
 SHELL_CMD_REGISTER(flashena, NULL, "Enable/disable flash", cmd_flashena);
+SHELL_CMD_REGISTER(sendjson, NULL, "Send JSON data", cmd_sendjson);
+
+

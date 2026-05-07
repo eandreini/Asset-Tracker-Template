@@ -30,6 +30,9 @@
 #include "common/gpsparams.h"
 #include "modules/gmtrack/gmtrack.h"
 
+#include <net/nrf_cloud_log.h>
+
+
 #if defined(CONFIG_APP_LED)
 #include "led.h"
 #endif /* CONFIG_APP_LED */
@@ -1874,7 +1877,7 @@ int main(void)
 
 		return -EFAULT;
 	}
-
+	nrf_cloud_log_enable(nrf_cloud_log_control_get() != LOG_LEVEL_NONE);
 	smf_set_initial(SMF_CTX(&main_state), &states[STATE_WAITING_FOR_MODULES_INIT]);
 
 	while (1) {

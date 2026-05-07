@@ -17,6 +17,8 @@
 #include <zephyr/pm/device_runtime.h>
 #include <zephyr/pm/pm.h>
 #include <net/nrf_cloud_coap.h>
+#include <net/nrf_cloud_log.h>
+#include <nrf_cloud_coap_transport.h>
 
 
 #include "network.h"
@@ -466,8 +468,11 @@ static int cmd_dcdc(const struct shell *sh, size_t argc, char **argv)
 
 static int cmd_sendjson(const struct shell *sh, size_t argc, char **argv)
 {
-    const char *custom_msg = "{\"appId\":\"MYAPP\",\"messageType\":\"DATA\",\"data\":{\"val\":1}}";
-    nrf_cloud_coap_json_message_send(custom_msg, false, false);
+    nrf_cloud_log_send(LOG_LEVEL_INF, "Test log %d", 1);
+
+    nrf_cloud_coap_message_send("GMLOG","base64ecnodedstring", false, NRF_CLOUD_NO_TIMESTAMP, false);
+    nrf_cloud_coap_message_send("GMTRACK","{\"S\":\"DEADBEEFABADCAFE\",\"B\":1550,\"M\":\"FED1B00C0234\"}", false, NRF_CLOUD_NO_TIMESTAMP, false);
+
     return 1;
 }
 

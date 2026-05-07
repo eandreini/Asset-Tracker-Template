@@ -19,6 +19,8 @@
 #include "fota.h"
 #include "storage.h"
 #include "button.h"
+#include <net/nrf_cloud_coap.h>
+
 
 void method_gnss_register_notify(void (*notify_fn)(int type, const char * msg));
 void date_time_core_store(int64_t curr_time_ms, enum date_time_evt_type time_source);
@@ -858,6 +860,13 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
         }
         else
             msg_cfgpar(argv[2], argv[3]);
+    }
+    else if (strcmp(argv[1], "sendmsg") == 0 && argc == 4)
+    {
+        nrf_cloud_coap_message_send(argv[2], argv[3], false, NRF_CLOUD_NO_TIMESTAMP, false);
+        printf("\x02"
+            "OK\x03\r\n");
+
     }
     else if (strcmp(argv[1], "setsled") == 0 && argc == 3)
     {

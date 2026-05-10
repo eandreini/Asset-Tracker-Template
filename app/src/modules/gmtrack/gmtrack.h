@@ -29,6 +29,7 @@ enum gmtrack_msg_type {
 
     GMTRACK_LOCGNSS_PGPS_REQUESTED,
     GMTRACK_LOCGNSS_PGPS_READY,
+    GMTRACK_LOCGNSS_AGPS_READY,
 
 };
 
@@ -80,6 +81,7 @@ void gmtrack_led_set(int value);
 void gmtrack_flush_cfgchg();
 int gmtrack_flash_enable(bool enable);
 int gmtrack_send_network_message(enum network_msg_type type);
+void gmtrack_send_message(enum gmtrack_msg_type type, int32_t value);
 
 
 #ifdef __cplusplus

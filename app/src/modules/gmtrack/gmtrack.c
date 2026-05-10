@@ -118,7 +118,8 @@ static const struct smf_state states[] = {
     [STATE_RUNNING] = SMF_CREATE_STATE(NULL, state_running_run, NULL, NULL, NULL),
 };
 
-static void send_gmtrack_message(enum gmtrack_msg_type type, int32_t value)
+
+void gmtrack_send_message(enum gmtrack_msg_type type, int32_t value)
 {
     const struct gmtrack_msg msg = {
         .type = type,
@@ -352,10 +353,13 @@ static void pgps_notify(int type, const char * msg)
             LOG_DBG("location_method_gnss registered");
             break;
         case 1: /* P-GPS prediction requested */
-            send_gmtrack_message(GMTRACK_LOCGNSS_PGPS_REQUESTED, 0);
+            gmtrack_send_message(GMTRACK_LOCGNSS_PGPS_REQUESTED, 0);
             break;
         case 2: /* P-GPS predictions ready */
-            send_gmtrack_message(GMTRACK_LOCGNSS_PGPS_READY, 0);
+            gmtrack_send_message(GMTRACK_LOCGNSS_PGPS_READY, 0);
+            break;
+        case 3: /* A-GPS ready */
+            gmtrack_send_message(GMTRACK_LOCGNSS_AGPS_READY, 0);
             break;
         default:
             LOG_WRN("Unknown notification type from location_method_gnss: %d", type);
@@ -404,7 +408,8 @@ static enum smf_state_result state_running_run(void *o)
             gmtrack_flash_enable(true);
         }
         else if (msg->type == GMTRACK_LOCGNSS_PGPS_REQUESTED ||
-                msg->type == GMTRACK_LOCGNSS_PGPS_READY)
+                msg->type == GMTRACK_LOCGNSS_PGPS_READY ||
+                msg->type == GMTRACK_LOCGNSS_AGPS_READY)
         {
             add_msg_signal(gmstep_gmtrack, msg->type);
         }
@@ -458,6 +463,7 @@ static enum smf_state_result state_running_run(void *o)
         if (msg->type == LOCATION_SEARCH_STARTED ||
             msg->type == LOCATION_SEARCH_DONE ||
             msg->type == LOCATION_GNSS_SEARCH_TRIGGER ||
+            msg->type == LOCATION_AGNSS_REQUEST ||
             msg->type == LOCATION_GNSS_DATA )
         {
             add_msg_signal(gmstep_location, msg->type);

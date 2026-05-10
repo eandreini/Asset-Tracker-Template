@@ -17,6 +17,8 @@
 #include "app_common.h"
 #include "location.h"
 
+#include "gmtrack.h"
+
 LOG_MODULE_DECLARE(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
 #define AGNSS_MAX_DATA_SIZE 3800
@@ -250,6 +252,7 @@ static void handle_agnss_request(const struct nrf_modem_gnss_agnss_data_frame *r
 	}
 
 	LOG_DBG("A-GNSS data processed successfully");
+	gmtrack_send_message(GMTRACK_LOCGNSS_AGPS_READY, 0);
 }
 #endif /* CONFIG_NRF_CLOUD_AGNSS */
 

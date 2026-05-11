@@ -1,5 +1,5 @@
 diff --git a/lib/location/method_gnss.c b/lib/location/method_gnss.c
-index 8db411ef..08b8ec04 100644
+index 8db411ef..e6b01e6c 100644
 --- a/lib/location/method_gnss.c
 +++ b/lib/location/method_gnss.c
 @@ -33,6 +33,9 @@
@@ -72,3 +72,17 @@ index 8db411ef..08b8ec04 100644
  			if (gnss_config.priority_mode) {
  				LOG_DBG("GNSS is not getting long enough time windows. "
  					"Triggering GNSS priority mode.");
+@@ -1368,6 +1402,13 @@ static void method_gnss_start_work_fn(struct k_work *work)
+ 		return;
+ 	}
+ 
++/* GM BEGIN - enable GNSS priority mode from the beginning */
++	err = nrf_modem_gnss_prio_mode_enable();
++	if (err) {
++		LOG_ERR("Unable to trigger GNSS priority mode.");
++	}
++	LOG_DBG("GNSS Priority mode enabled");
++/* GM END */
+ #if defined(CONFIG_LOCATION_DATA_DETAILS)
+ 	elapsed_time_gnss_start_timestamp = k_uptime_get();
+ #endif

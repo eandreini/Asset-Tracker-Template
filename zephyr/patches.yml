@@ -1,6 +1,6 @@
 patches:
   - path: nrf_patch.patch
-    sha256sum: 7c3ecb08f632fd280c2044823c4d749ba87a999374dc6900e09f9672c0aa7744
+    sha256sum: 005cd9f05908f3532637f6308499672003615aa29114914e50ad8eda982745ad
     module: nrf
     author: Andrea Bigagli
     email: andrea.bigagli@grupposimtel.com

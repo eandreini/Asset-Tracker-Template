@@ -220,18 +220,11 @@ static int cmd_cfgdump(const struct shell *sh, size_t argc, char **argv)
     return 1;
 }
 
-static void chg_flush(const char *msg)
-{
-    printf("CfgRow: %s\n", msg);
-}
+
 
 
 static int cmd_cfgchg(const struct shell *sh, size_t argc, char **argv)
 {
-    char buf[60];
-
-    int rv = GpsParamsFlushValids(buf, 60, chg_flush);
-    printf("%d parameters changed\n", rv);
     gmtrack_flush_cfgchg();
     return 1;
 }

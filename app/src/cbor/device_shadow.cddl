@@ -92,6 +92,18 @@ shadow-object = {
         ? "TI8": uint .size 1,
 
         ? "ODE": uint .size 1,
+        ? "AMD": uint .size 1,
+
+        ? "TA1": uint .size 1,
+        ? "TA2": uint .size 1,
+        ? "TA3": uint .size 1,
+        ? "TA4": uint .size 1,
+        ? "TA5": uint .size 1,
+        ? "TA6": uint .size 1,
+        ? "TA7": uint .size 1,
+        ? "TA8": uint .size 1,
+
+        ? "LOG": uint .size 1,
 
         * tstr => any
     },

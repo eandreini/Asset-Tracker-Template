@@ -63,7 +63,7 @@ struct gmtrack_poll_msg {
     uint8_t len;
     uint8_t p1;
     uint8_t p2;
-    char data[60];
+    char data[128];
 };
 
 

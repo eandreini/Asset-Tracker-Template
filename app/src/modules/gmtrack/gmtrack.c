@@ -816,19 +816,6 @@ void poll_test_fun(struct k_timer *timer_id)
     add_text_msg("Polled message test 2");
 }
 
-static void msg_cfgpar(const char *name, const char *value)
-{
-    int val = atoi(value);
-    if (GpsParamsSetValue(name, val) != 0)
-    {
-        printf("\x02"
-               "ERR Bad param name\x03\r\n");
-        LOG_ERR("Bad param name %s", name);
-    }
-    printf("\x02"
-           "OK\x03\r\n");
-}
-
 static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
 {
     /*LOG_DBG("Received silmsg command with %d args", argc);
@@ -856,16 +843,6 @@ static int cmd_silmsg(const struct shell *sh, size_t argc, char **argv)
     }
     else if (strcmp(argv[1], "noresp") == 0)
     {
-    }
-    else if (strcmp(argv[1], "cfgpar") == 0)
-    {
-        if (argc != 4)
-        {
-            printf("\x02"
-                   "ERR Bad params\x03\r\n");
-        }
-        else
-            msg_cfgpar(argv[2], argv[3]);
     }
     else if (strcmp(argv[1], "sendmsg") == 0 && argc == 4)
     {
@@ -1011,9 +988,13 @@ static void chg_queue_flush(const char *msg)
 
 void gmtrack_flush_cfgchg()
 {
-    char buf[60];
-    GpsParamsFlushValids(buf, 60, chg_queue_flush);
-
+    char buf[256];
+    int rv = GpsParamsBase64Encode(&g_gpsparams, buf, sizeof(buf));
+    if (rv < 0) {
+        LOG_ERR("Failed to encode GPS params for flush");
+        return;
+    }
+    chg_queue_flush(buf);
 }
 
 

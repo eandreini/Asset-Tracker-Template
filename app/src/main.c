@@ -998,7 +998,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 
 
 		update_shadow_reported_section(&reported_config, 0, 0,
-					       CLOUD_SHADOW_SET_REPORTED_CONFIG);
+					       CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 
 		break;
 
@@ -1022,7 +1022,7 @@ static void handle_cloud_shadow_response(struct main_state *state_object,
 
 		
 		update_shadow_reported_section(&reported_config, 0, 0,
-					       CLOUD_SHADOW_SET_REPORTED_CONFIG);
+					       CLOUD_SHADOW_UPDATE_REPORTED_CONFIG);
 
 		break;
 	default:

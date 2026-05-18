@@ -11,7 +11,7 @@
 #include <zephyr/task_wdt/task_wdt.h>
 #include <zephyr/smf.h>
 #include <zephyr/sys/reboot.h>
-#include <zephyr/app_version.h>
+#include <app_commit.h>
 
 #include "app_common.h"
 #ifdef CONFIG_APP_INSPECT_SHELL
@@ -55,15 +55,8 @@ extern gpsparams_t g_gpsparams;
 extern gpsparams_valid_t g_gpsparams_chgd;
 
 
-/* The two-level stringify converts it to a proper string literal
- * to prevent interpreting the APP_BUILD_VERSION value as a number literal
- *   _TOSTR(x)  →  "x"  (stringifies the literal text of x)
- *   TOSTR(x)   →  expands x first, then stringifies the result  */
-#define _TOSTR(x) #x
-#define TOSTR(x)  _TOSTR(x)
-
 const char build_id[] __attribute__((used)) =
-	"@(#) " TOSTR(APP_BUILD_VERSION) " built:" __DATE__ " " __TIME__;
+	"@(#) " APP_COMMIT_STRING " built:" __DATE__ " " __TIME__;
 
 
 enum timer_msg_type {

@@ -751,6 +751,11 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 			LOG_ERR("nrf_cloud_coap_shadow_configured_info_update, error: %d", err);
 			send_request_failed();
 		}
+		err = nrf_cloud_coap_shadow_state_update("{\"device\": {\"deviceInfo\": {\"GitSha\":\"dsafafsd\"}}}");
+		if (err) {
+			LOG_ERR("nrf_cloud_coap_shadow_state_update, error: %d", err);
+			send_request_failed();
+		}
 		break;
 	case CLOUD_PROVISIONING_REQUEST:
 		LOG_DBG("Provisioning request received");

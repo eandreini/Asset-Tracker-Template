@@ -104,7 +104,7 @@ void GpsParamsGetAll(gpsparams_t * gpsparams, gpsparams_valid_t * gpschgd)
 	if (shadow->config.srcname##_present) {\
 		gpsvld->vld##dstname = 1;\
 		gpsparams->dstname = shadow->config.srcname.srcname;\
-		LOG_DBG ("***Param "#srcname"("#dstname") received value %d ***",shadow->config.srcname.srcname);\
+		/*LOG_DBG ("***Param "#srcname"("#dstname") received value %d ***",shadow->config.srcname.srcname);*/\
 	}\
 	else\
 		gpsvld->vld##dstname = 0;\
@@ -188,7 +188,7 @@ void GpsParamsDecodeFromCbor (const struct shadow_object * shadow, gpsparams_t *
 		shadow->config_present = true;\
 		shadow->config.dstname##_present = true;\
 		shadow->config.dstname.dstname = gpsparams->srcname;\
-		LOG_DBG ("***Param "#srcname"("#dstname") sent value %d ***",shadow->config.dstname.dstname);\
+		/*LOG_DBG ("***Param "#srcname"("#dstname") sent value %d ***",shadow->config.dstname.dstname);*/\
 	}\
     else {\
         shadow->config.dstname##_present = false;\

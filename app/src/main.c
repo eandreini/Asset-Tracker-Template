@@ -55,7 +55,7 @@ extern gpsparams_t g_gpsparams;
 extern gpsparams_valid_t g_gpsparams_chgd;
 
 
-const char build_id[] __attribute__((used)) =
+char build_id[] __attribute__((used)) =
 	"@(#) " APP_COMMIT_STRING " built:" __DATE__ " " __TIME__;
 
 

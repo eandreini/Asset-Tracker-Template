@@ -39,6 +39,8 @@
 #include "network.h"
 #include "storage.h"
 
+extern char build_id[];
+
 /* Register log module */
 LOG_MODULE_REGISTER(cloud, CONFIG_APP_CLOUD_LOG_LEVEL);
 
@@ -751,10 +753,14 @@ static void handle_cloud_channel_message(struct cloud_state_object const *state_
 			LOG_ERR("nrf_cloud_coap_shadow_configured_info_update, error: %d", err);
 			send_request_failed();
 		}
-		err = nrf_cloud_coap_shadow_state_update("{\"device\": {\"deviceInfo\": {\"GitSha\":\"dsafafsd\"}}}");
-		if (err) {
-			LOG_ERR("nrf_cloud_coap_shadow_state_update, error: %d", err);
-			send_request_failed();
+		{
+			char json_buf[128];
+			sprintf(json_buf, "{\"device\": {\"deviceInfo\": {\"gitSha\":\"%s\"}}}", build_id+5);
+			err = nrf_cloud_coap_shadow_state_update(json_buf);
+			if (err) {
+				LOG_ERR("nrf_cloud_coap_shadow_state_update, error: %d", err);
+				send_request_failed();
+			}
 		}
 		break;
 	case CLOUD_PROVISIONING_REQUEST:

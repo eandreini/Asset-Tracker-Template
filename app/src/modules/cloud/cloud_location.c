@@ -296,12 +296,21 @@ static void handle_gnss_location_data(const struct location_msg *location_msg)
 	if (gnss.pvt_data.flags & NRF_MODEM_GNSS_PVT_FLAG_FIX_VALID) {
 		gnss_data.pvt.alt = gnss.pvt_data.altitude;
 		gnss_data.pvt.speed = gnss.pvt_data.speed;
-		gnss_data.pvt.heading = gnss.pvt_data.heading;
+		/* GM BEGIN */
+		//gnss_data.pvt.heading = gnss.pvt_data.heading;
+		int pdop = (int)(gnss.pvt_data.pdop);
+		if (pdop > 15)
+			pdop = 15;
+		gnss_data.pvt.heading = pdop << 16 | gnss.satellites_tracked << 8 | gnss.satellites_used;
+		/* GM END */
 		gnss_data.pvt.has_alt = 1;
 		gnss_data.pvt.has_speed =
 			(gnss.pvt_data.flags & NRF_MODEM_GNSS_PVT_FLAG_VELOCITY_VALID) ? 1 : 0;
-		gnss_data.pvt.has_heading =
-			(gnss.pvt_data.heading_accuracy < CLOUD_GNSS_HEADING_ACC_LIMIT) ? 1 : 0;
+		/* GM BEGIN */
+		//gnss_data.pvt.has_heading =
+		//	(gnss.pvt_data.heading_accuracy < CLOUD_GNSS_HEADING_ACC_LIMIT) ? 1 : 0;
+		gnss_data.pvt.has_heading = 1;
+		/* GM END */
 	}
 #endif /* CONFIG_LOCATION_DATA_DETAILS */
 
